@@ -19,3 +19,12 @@ dependencies {
     //
     // testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
+tasks.test {
+    testLogging {
+        // Show standard output and error streams
+        showStandardStreams = true
+
+        // Optionally, customize log levels
+        events("passed", "failed", "skipped") // Configure which test events to log
+    }
+}
