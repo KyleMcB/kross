@@ -12,3 +12,4 @@ plugins {
 
 rootProject.name = "kross"
 include("app")
+include("parser")
