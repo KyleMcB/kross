@@ -52,6 +52,7 @@ class Lexer(
             TokenType.Or -> Token.Or
             TokenType.LeftParen -> Token.LeftParen
             TokenType.RightParen -> Token.RightParen
+            TokenType.Path -> TODO()
         }
     }
 }
