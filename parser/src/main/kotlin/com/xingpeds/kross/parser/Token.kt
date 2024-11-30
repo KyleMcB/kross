@@ -9,6 +9,7 @@ sealed class Token {
     ) : Token() {
         override val type = TokenType.Word
     }
+
     data object Semicolon : Token() {
         override val type = TokenType.Semicolon
     }
@@ -32,5 +33,9 @@ sealed class Token {
     data object RightParen : Token() {
         override val type = TokenType.RightParen
     }
-    
+
+    data object EOF : Token() {
+        //FIXME the enum requires a regex matcher and EOF has nothing to match to. Just a token the lexer makes
+        override val type = TokenType.Word
+    }
 }

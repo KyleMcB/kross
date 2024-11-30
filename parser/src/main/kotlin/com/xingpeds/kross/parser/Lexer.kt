@@ -40,6 +40,7 @@ class Lexer(
             }
 
         }
+        emit(Token.EOF)
     }
 
     private fun createTokenFrom(text: String, tokenType: TokenType): Token {

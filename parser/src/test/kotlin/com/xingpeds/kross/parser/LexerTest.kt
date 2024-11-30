@@ -11,7 +11,7 @@ class LexerTest {
         val program = "hello"
         val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
-        assertEquals(1, tokens.size, "should have one token")
+        assertEquals(2, tokens.size, "should have one token")
         val expeced = Token.Word("hello")
         assertEquals(expeced, tokens.first(), "should be the expected token")
     }
@@ -21,7 +21,7 @@ class LexerTest {
         val program = "hello world"
         val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
-        assertEquals(2, tokens.size, "should have two tokens")
+        assertEquals(3, tokens.size, "should have two tokens")
     }
 
     @Test
@@ -29,7 +29,7 @@ class LexerTest {
         val program = "   hello\n world"
         val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
-        assertEquals(2, tokens.size, "should have two tokens")
+        assertEquals(3, tokens.size, "should have two tokens")
     }
 
     @Test
@@ -38,7 +38,7 @@ class LexerTest {
         val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
         println(tokens)
-        assertEquals(3, tokens.size, "should have three tokens")
+        assertEquals(4, tokens.size, "should have three tokens")
         assertEquals(Token.Word("hello"), tokens[0], "should be the expected token")
         assertEquals(Token.Semicolon, tokens[1], "should be the expected token")
     }
