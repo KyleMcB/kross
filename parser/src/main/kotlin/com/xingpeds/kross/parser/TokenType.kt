@@ -25,5 +25,6 @@ enum class TokenType(
     Or(Regex("^\\|\\|"), 4),
     LeftParen(Regex("^\\("), 6),
     RightParen(Regex("^\\)"), 6),
-    Path(Regex("^/([^\\s$sc]*)"), 5);
+    Path(Regex("^/([^\\s$sc]*)"), 5),
+    Dollar(Regex("^\\$"), 7);
 }

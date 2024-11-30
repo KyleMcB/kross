@@ -4,6 +4,10 @@ package com.xingpeds.kross.parser
 sealed class Token {
     abstract val type: TokenType
 
+    data object Dollar : Token() {
+        override val type = TokenType.Dollar
+    }
+
     data class Word(
         val value: String,
     ) : Token() {
@@ -35,7 +39,11 @@ sealed class Token {
     }
 
     data object EOF : Token() {
-        //FIXME the enum requires a regex matcher and EOF has nothing to match to. Just a token the lexer makes
+
         override val type = TokenType.Word
+    }
+
+    data class Path(val value: String) : Token() {
+        override val type = TokenType.Path
     }
 }

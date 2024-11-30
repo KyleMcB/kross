@@ -56,7 +56,8 @@ class Lexer(
             TokenType.Or -> Token.Or
             TokenType.LeftParen -> Token.LeftParen
             TokenType.RightParen -> Token.RightParen
-            TokenType.Path -> TODO() //Token.Path(text) // Implement Path token
+            TokenType.Path -> Token.Path(text)
+            TokenType.Dollar -> Token.Dollar
         }
     }
 }
