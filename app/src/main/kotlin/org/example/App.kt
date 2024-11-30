@@ -16,6 +16,6 @@ fun main() {
         print("what is your name")
         readLine()
     }.filterNotNull()
-    .takeWhile { it != "exit" }
-    .forEach { print("hello $it") }
+        .takeWhile { it != "exit" }
+        .forEach { print("hello $it") }
 }
