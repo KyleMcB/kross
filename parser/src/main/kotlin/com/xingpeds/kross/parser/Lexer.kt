@@ -14,31 +14,35 @@ class Lexer(
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
     private var cursor = 0
+
     fun tokens(): Flow<Token> = flow {
         while (cursor <= input.lastIndex) {
             val string = input.substring(cursor)
+
+            // Skip whitespace
             val ws = whiteSpaceMatcher.find(string)
             if (ws != null) {
                 cursor += ws.value.length
                 continue
             }
-            val match: Pair<MatchResult, TokenType>? = TokenType.entries.parallelMap(coroutineScope) { tokenType ->
+
+            // Match tokens in parallel
+            val match = TokenType.entries.parallelMap(coroutineScope) { tokenType ->
                 val match = tokenType.matcher.find(string)
-                return@parallelMap if (match != null) {
-                    match to tokenType
-                } else {
-                    null
-                }
-            }.filterNotNull().sortedBy { it.second.precedence }.reversed().firstOrNull()
+                match?.let { it to tokenType }
+            }.filterNotNull()
+                .maxByOrNull { it.second.precedence } // Choose the highest precedence match
+
             if (match != null) {
-                //
-                val token = createTokenFrom(string.substring(0, match.first.value.length), match.second)
-                cursor += match.first.value.length
+                val (matchResult, tokenType) = match
+                val tokenText = matchResult.value
+                val token = createTokenFrom(tokenText, tokenType)
+                cursor += tokenText.length
                 emit(token)
             } else {
-                throw Exception("Unexpected character at $cursor\n\"$string\"")
+                val snippet = string.take(10)
+                throw Exception("Unexpected character '${string[0]}' at cursor $cursor near: \"$snippet\"")
             }
-
         }
         emit(Token.EOF)
     }
@@ -52,7 +56,7 @@ class Lexer(
             TokenType.Or -> Token.Or
             TokenType.LeftParen -> Token.LeftParen
             TokenType.RightParen -> Token.RightParen
-            TokenType.Path -> TODO()
+            TokenType.Path -> TODO() //Token.Path(text) // Implement Path token
         }
     }
 }
@@ -63,5 +67,5 @@ suspend fun <A, B> Iterable<A>.parallelMap(
 ): List<B> = scope.run {
     map { element ->
         async { transform(element) }
-    }.awaitAll() // Collect all the deferred results
+    }.awaitAll()
 }
