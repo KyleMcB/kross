@@ -3,3 +3,9 @@
 
 # Ignore Gradle build output directory
 build
+/.idea/compiler.xml
+/.idea/gradle.xml
+/.kotlin/sessions/kotlin-compiler-5730339735560704700.salive
+/.idea/kotlinc.xml
+/.idea/misc.xml
+/.idea/vcs.xml
