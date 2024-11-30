@@ -45,6 +45,12 @@ class Lexer(
     private fun createTokenFrom(text: String, tokenType: TokenType): Token {
         return when (tokenType) {
             TokenType.Word -> Token.Word(text)
+            TokenType.Semicolon -> Token.Semicolon
+            TokenType.Pipe -> Token.Pipe
+            TokenType.And -> Token.And
+            TokenType.Or -> Token.Or
+            TokenType.LeftParen -> Token.LeftParen
+            TokenType.RightParen -> Token.RightParen
         }
     }
 }
