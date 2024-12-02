@@ -59,6 +59,8 @@ class Lexer(
             TokenType.Path -> Token.Path(text)
             TokenType.Dollar -> Token.Dollar
             TokenType.EOF -> Token.EOF
+            TokenType.SingleQuotedString -> Token.SingleQuote(text)
+            TokenType.DoubleQuotedString -> Token.DoubleQuote(text)
         }
     }
 }

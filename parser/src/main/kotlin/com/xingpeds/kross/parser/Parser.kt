@@ -226,12 +226,11 @@ class Parser(
     private fun isQuote(): Boolean = quotes.contains(lookahead.type)
     private fun parseQuoteArgument(): AST.WordArgument {
         val token = eat(TokenType.DoubleQuotedString, TokenType.SingleQuotedString)
-        when (token) {
-            is Token.DoubleQuote -> {
-                g
-            }
+        if (token is Token.Literal) {
+            return AST.WordArgument(token.value)
+        } else {
+            throw SyntaxError("Unexpected token: $token")
         }
-        return AST.WordArgument()
     }
 
     private fun parseVariableSubstitution(): AST.VariableSubstitution {

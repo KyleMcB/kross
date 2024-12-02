@@ -8,9 +8,21 @@ sealed class Token {
         override val type = TokenType.Dollar
     }
 
+    sealed class Literal : Token() {
+        abstract val value: String
+    }
+
+    data class SingleQuote(override val value: String) : Literal() {
+        override val type = TokenType.SingleQuotedString
+    }
+
+    data class DoubleQuote(override val value: String) : Literal() {
+        override val type = TokenType.DoubleQuotedString
+    }
+
     data class Word(
-        val value: String,
-    ) : Token() {
+        override val value: String,
+    ) : Literal() {
         override val type = TokenType.Word
     }
 

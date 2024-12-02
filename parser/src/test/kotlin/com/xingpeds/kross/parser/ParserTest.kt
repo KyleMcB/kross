@@ -63,9 +63,44 @@ class ParserTest {
         val parser = Parser(program)
         val ast = parser.parse()
 
-        println(ast)
         val expected = AST.Program(listOf(AST.Or(AST.SimpleCommand("command1"), AST.SimpleCommand("command2"))))
         assertEquals(expected, ast)
+    }
+
+    @Test
+    fun SinglequoteArguement() {
+        val program = "echo \'hello world\'"
+        val parser = Parser(program)
+        val ast = parser.parse()
+        println(ast)
+    }
+
+    @Test
+    fun DoublequoteArguement() {
+        val program = "echo \"hello world\""
+        val parser = Parser(program)
+        val ast = parser.parse()
+        println(ast)
+    }
+
+    @Test
+    fun testPipelineParsing2() {
+        val program = "ls | grep file | cowsay"
+        val parser = Parser(program)
+        val ast = parser.parse()
+        val expected = AST.Program(
+            listOf(
+                AST.Pipeline(
+                    listOf(
+                        AST.SimpleCommand("ls"),
+                        AST.SimpleCommand("grep", listOf(AST.WordArgument("file"))),
+                        AST.SimpleCommand("cowsay")
+                    )
+                )
+            )
+        )
+        assertEquals(expected, ast)
+        // Check if the AST is a Pipeline
     }
 
     @Test

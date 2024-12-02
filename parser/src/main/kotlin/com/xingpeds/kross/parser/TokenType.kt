@@ -25,6 +25,14 @@ enum class TokenType(
     Or(Regex("^\\|\\|"), 4),
     LeftParen(Regex("^\\("), 6),
     RightParen(Regex("^\\)"), 6),
+    SingleQuotedString(
+        Regex("^'([^'\\\\]|\\\\.)*'"),
+        precedence = 7
+    ),  // Handles escaped characters within single quotes
+    DoubleQuotedString(
+        Regex("^\"([^\"\\\\]|\\\\.)*\""),
+        precedence = 7
+    ), // Handles escaped characters within double quotes
     Path(Regex("^/([^\\s$sc]*)"), 5),
     Dollar(Regex("^\\$"), 7),
     EOF(Regex("^$"), 8);
