@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 
-// Parser.kt
 /**
 input          ::= sequence
 
@@ -125,7 +124,15 @@ class Parser(
         }
     }
 
-    private val argTokens = listOf(TokenType.Word, TokenType.Dollar, TokenType.LeftParen)
+    private val argTokens =
+        listOf(
+            TokenType.Word,
+            TokenType.Dollar,
+            TokenType.LeftParen,
+            TokenType.SingleQuotedString,
+            TokenType.DoubleQuotedString
+        )
+
     private fun parseSimpleCommand(): AST.SimpleCommand {
         println("Starting parseSimpleCommand method")
         val command = when (val token = eat(TokenType.Word, TokenType.Path)) {
@@ -138,8 +145,7 @@ class Parser(
             val arg: AST.Argument = when (lookahead) {
                 is Token.Dollar -> parseVariableSubstitution()
                 is Token.LeftParen -> parseCommandSubstitution()
-                is Token.Word -> parseWordArgument()
-                else -> throw SyntaxError("Unexpected token: $lookahead")
+                else -> parseWordArgument()
             }
             arguments.add(arg)
         }
@@ -203,9 +209,29 @@ class Parser(
     }
 
     private fun parseWordArgument(): AST.Argument {
-        println("Starting parseWordArgument method")
-        val wordToken = eat(TokenType.Word) as Token.Word
-        return AST.WordArgument(wordToken.value)
+        return when (lookahead) {
+            is Token.Word -> return parseSimpleWordArgument()
+            is Token.SingleQuote, is Token.DoubleQuote -> parseQuoteArgument()
+            else -> throw SyntaxError("Unexpected token: $lookahead")
+        }
+    }
+
+    private fun parseSimpleWordArgument(): AST.WordArgument {
+        val token = eat(TokenType.Word) as Token.Word
+        return AST.WordArgument(token.value)
+    }
+
+    //
+    private val quotes = listOf(TokenType.DoubleQuotedString, TokenType.SingleQuotedString)
+    private fun isQuote(): Boolean = quotes.contains(lookahead.type)
+    private fun parseQuoteArgument(): AST.WordArgument {
+        val token = eat(TokenType.DoubleQuotedString, TokenType.SingleQuotedString)
+        when (token) {
+            is Token.DoubleQuote -> {
+                g
+            }
+        }
+        return AST.WordArgument()
     }
 
     private fun parseVariableSubstitution(): AST.VariableSubstitution {
@@ -217,164 +243,5 @@ class Parser(
 
 }
 
-/* AI generated parser.
-class Parser(private val tokens: List<Token>) {
-    private var position = 0
-
-    fun parse(): Statement {
-        return parseSequence()
-    }
-
-    private fun parseSequence(): Statement {
-        var left = parseExpression()
-
-        while (match(TokenType.Semicolon, TokenType.And, TokenType.Or)) {
-            val operator = previous()
-            val right = parseExpression()
-            left = when (operator.type) {
-                TokenType.Semicolon -> Sequence(left, right)
-                TokenType.And -> And(left, right)
-                TokenType.Or -> Or(left, right)
-                else -> throw SyntaxError("Unknown operator ${operator.type}")
-            }
-        }
-
-        return left
-    }
-
-    private fun parseExpression(): Statement {
-        return parsePipeline()
-    }
-
-    private fun parsePipeline(): Statement {
-        val commands = mutableListOf<Command>()
-        commands.add(parseCommand())
-
-        while (match(TokenType.Pipe)) {
-            commands.add(parseCommand())
-        }
-
-        return if (commands.size == 1) commands[0] else Pipeline(commands)
-    }
-
-    private fun parseCommand(): Command {
-        val wordToken = consume(TokenType.Word, "Expected command name")
-        val name = (wordToken as Token.Word).value
-        val arguments = mutableListOf<Argument>()
-
-        while (check(TokenType.Word, TokenType.Dollar, TokenType.LeftParen)) {
-            when (peek().type) {
-                TokenType.Word -> {
-                    val wordArg = (advance() as Token.Word).value
-                    arguments.add(WordArgument(wordArg))
-                }
-
-                TokenType.Dollar -> {
-                    arguments.add(parseVariableSubstitution())
-                }
-
-                TokenType.LeftParen -> {
-                    arguments.add(parseCommandSubstitution())
-                }
-
-                else -> throw SyntaxError("Unexpected token in arguments: ${peek()}")
-            }
-        }
-
-        return SimpleCommand(name, arguments)
-    }
-
-    private fun parseVariableSubstitution(): Argument {
-        consume(TokenType.Dollar, "Expected '$' for variable substitution")
-
-        val varNameToken = consume(TokenType.Word, "Expected variable name after '$'")
-        return VariableSubstitution((varNameToken as Token.Word).value)
-    }
-
-    private fun parseCommandSubstitution(): Argument {
-        return when (peek().type) {
-            TokenType.LeftParen -> {
-                val commandStatement = parseCommandSubstitutionContent(TokenType.LeftParen)
-                consume(TokenType.RightParen, "Expected closing ')' for command substitution")
-                CommandSubstitution(commandStatement)
-            }
-
-            else -> throw SyntaxError("Expected '(' for command substitution at position $position")
-        }
-    }
-
-    private fun parseCommandSubstitutionContent(startToken: TokenType): Statement {
-        val tokensForSub = mutableListOf<Token>()
-        var nested = 0
-
-        while (!isAtEnd()) {
-            when (peek().type) {
-                TokenType.LeftParen -> {
-                    nested++
-                    tokensForSub.add(advance())
-                }
-
-                TokenType.RightParen -> {
-                    if (nested == 0) break
-                    nested--
-                    tokensForSub.add(advance())
-                }
-
-                else -> {
-                    tokensForSub.add(advance())
-                }
-            }
-        }
-
-        if (tokensForSub.isEmpty()) {
-            throw SyntaxError("Empty command substitution at position $position")
-        }
-
-        // Parse the tokens for the substitution
-        val subParser = Parser(tokensForSub + Token.EOF)
-        return subParser.parse()
-    }
-
-    // Utility Parsing Methods
-
-    private fun match(vararg types: TokenType): Boolean {
-        for (type in types) {
-            if (check(type)) {
-                advance()
-                return true
-            }
-        }
-        return false
-    }
-
-    // fixme match can not utilize the vararg of check
-    private fun check(vararg types: TokenType): Boolean {
-        if (isAtEnd()) return false
-        return types.any { it == peek().type }
-    }
-
-    private fun consume(type: TokenType, errorMessage: String): Token {
-        if (check(type)) return advance()
-        throw SyntaxError("$errorMessage at position $position")
-    }
-
-    private fun advance(): Token {
-        if (!isAtEnd()) position++
-        return previous()
-    }
-
-    private fun peek(): Token {
-        return tokens[position]
-    }
-
-    private fun previous(): Token {
-        return tokens[position - 1]
-    }
-
-    private fun isAtEnd(): Boolean {
-        return peek() is Token.EOF
-    }
-}
-*/
 // Custom exception for syntax errors
 class SyntaxError(message: String) : Exception(message)
