@@ -23,6 +23,7 @@ command_line   ::= input
  */
 sealed class AST {
 
+    data class Program(val statements: List<AST>) : AST()
 
     // Represents a sequence of statements separated by operators like &&, ||, ;
     data class Sequence(
@@ -30,29 +31,29 @@ sealed class AST {
         val right: AST
     ) : AST()
 
+    // Represents a single command with arguments and possible substitutions
+    sealed class Command : AST()
+
     // Represents logical AND (&&) between statements
     data class And(
         val left: AST,
         val right: AST
-    ) : AST()
+    ) : Command()
 
     // Represents logical OR (||) between statements
     data class Or(
         val left: AST,
         val right: AST
-    ) : AST()
+    ) : Command()
 
     // Represents a pipeline of commands connected by |
     data class Pipeline(
         val commands: List<Command>
-    ) : AST()
-
-    // Represents a single command with arguments and possible substitutions
-    sealed class Command : AST()
+    ) : Command()
 
     data class SimpleCommand(
         val name: String,
-        val arguments: List<Argument>
+        val arguments: List<Argument> = emptyList()
     ) : Command()
 
     // Represents an argument which can be a word or a substitution

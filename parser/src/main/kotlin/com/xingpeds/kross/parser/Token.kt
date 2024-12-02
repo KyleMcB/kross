@@ -40,7 +40,7 @@ sealed class Token {
 
     data object EOF : Token() {
 
-        override val type = TokenType.Word
+        override val type = TokenType.EOF
     }
 
     data class Path(val value: String) : Token() {
