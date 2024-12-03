@@ -72,7 +72,15 @@ class ParserTest {
         val program = "echo \'hello world\'"
         val parser = Parser(program)
         val ast = parser.parse()
-        println(ast)
+        val expected = AST.Program(
+            listOf(
+                AST.SimpleCommand(
+                    name = "echo",
+                    arguments = listOf(AST.WordArgument("'hello world'"))
+                )
+            )
+        )
+        assertEquals(expected, ast)
     }
 
     @Test
@@ -80,7 +88,15 @@ class ParserTest {
         val program = "echo \"hello world\""
         val parser = Parser(program)
         val ast = parser.parse()
-        println(ast)
+        val expected = AST.Program(
+            listOf(
+                AST.SimpleCommand(
+                    name = "echo",
+                    arguments = listOf(AST.WordArgument("\"hello world\""))
+                )
+            )
+        )
+        assertEquals(expected, ast)
     }
 
     @Test
