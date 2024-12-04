@@ -23,7 +23,7 @@ command_line   ::= input
  */
 sealed class AST {
 
-    data class Program(val statements: List<AST>) : AST()
+    data class Program(val statements: List<AST.Command>) : AST()
 
     // Represents a sequence of statements separated by operators like &&, ||, ;
     data class Sequence(
