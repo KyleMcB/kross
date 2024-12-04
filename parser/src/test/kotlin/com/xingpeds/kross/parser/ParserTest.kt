@@ -116,7 +116,6 @@ class ParserTest {
             )
         )
         assertEquals(expected, ast)
-        // Check if the AST is a Pipeline
     }
 
     @Test
@@ -135,17 +134,15 @@ class ParserTest {
             )
         )
         assertEquals(expected, ast)
-        // Check if the AST is a Pipeline
     }
 
     @Test
     fun testSimpleCommandParsing() {
-        // FIXME: need to add quote parsing
-        val program = "echo 'simple command'"
+        val program = "echo simple"
         val parser = Parser(program)
         val ast = parser.parse()
-        println(ast)
-        // Check if the AST is a SimpleCommand
+        val expected = AST.Program(listOf(AST.SimpleCommand("echo", listOf(AST.WordArgument("simple")))))
+        assertEquals(expected, ast)
     }
 
     @Test
