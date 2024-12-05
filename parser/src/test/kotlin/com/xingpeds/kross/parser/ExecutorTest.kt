@@ -79,4 +79,14 @@ class ExecutorTest {
 
 
     }
+
+    @Test
+    fun stdinManuel() {
+        val executor = Executor(AST.Program(emptyList()))
+        val command = AST.SimpleCommand("cat", emptyList())
+        val input = "hello there".byteInputStream()
+        val output = StringBuilder()
+        executor.simpleCommand(command, input = input, output = output.asOutputStream())
+        println("Captured Output: ${output.toString().trim()}")
+    }
 }
