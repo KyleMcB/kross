@@ -25,12 +25,6 @@ sealed class AST {
 
     data class Program(val statements: List<AST.Command>) : AST()
 
-    // Represents a sequence of statements separated by operators like &&, ||, ;
-    data class Sequence(
-        val left: AST,
-        val right: AST
-    ) : AST()
-
     // Represents a single command with arguments and possible substitutions
     sealed class Command : AST()
 
@@ -68,6 +62,6 @@ sealed class AST {
     ) : Argument()
 
     data class CommandSubstitution(
-        val commandLine: AST
+        val commandLine: AST.Program
     ) : Argument()
 }

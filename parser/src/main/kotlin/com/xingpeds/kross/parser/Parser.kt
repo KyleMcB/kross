@@ -42,7 +42,7 @@ class Parser(
         }
     }
 
-    fun parse(): AST {
+    fun parse(): AST.Program {
         println("Starting parse method")
         return program()
     }
