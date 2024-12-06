@@ -58,9 +58,15 @@ sealed class AST {
         override val right = null
     }
 
+    sealed class CommandName {
+        abstract val value: String
+
+        data class Word(override val value: String) : CommandName()
+        data class Path(override val value: String) : CommandName()
+    }
 
     data class SimpleCommand(
-        val name: String,
+        val name: CommandName,
         val arguments: List<Argument> = emptyList()
     ) : AST(), Command
 

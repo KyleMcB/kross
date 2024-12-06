@@ -94,9 +94,9 @@ class Parser(
 
     private fun simpleCommand(): AST.SimpleCommand {
         val commandNameToken = eat(TokenType.Word, TokenType.Path)
-        val commandName = when (commandNameToken) {
-            is Token.Word -> commandNameToken.value
-            is Token.Path -> commandNameToken.value
+        val commandName: AST.CommandName = when (commandNameToken) {
+            is Token.Word -> AST.CommandName.Word(commandNameToken.value)
+            is Token.Path -> AST.CommandName.Path(commandNameToken.value)
             else -> throw SyntaxError("expected a command name or path and got $commandNameToken")
         }
         val args: List<AST.Argument> = arguments()
