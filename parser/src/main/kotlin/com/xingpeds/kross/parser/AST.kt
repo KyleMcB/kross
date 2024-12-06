@@ -3,11 +3,13 @@ package com.xingpeds.kross.parser
 /**
 input          ::= sequence
 
-sequence       ::= pipeline { operator pipeline }
+sequence       ::= pipeline { ; pipeline }
 
-operator       ::= '&&' | '||' | ';'
+operator       ::= '&&' | '||'
 
-pipeline       ::= command { '|' command }
+pipeline       ::= binaryCommand { '|' binaryCommand }
+
+binaryCommand ::= command { operator binaryCommand }
 
 command        ::= WORD { argument }
 
@@ -23,32 +25,44 @@ command_line   ::= input
  */
 sealed class AST {
 
-    data class Program(val statements: List<AST.Command>) : AST()
+    data class Program(val statements: Sequence) : AST()
 
-    // Represents a single command with arguments and possible substitutions
-    sealed class Command : AST()
 
-    // Represents logical AND (&&) between statements
-    data class And(
-        val left: AST,
-        val right: AST
-    ) : Command()
-
-    // Represents logical OR (||) between statements
-    data class Or(
-        val left: AST,
-        val right: AST
-    ) : Command()
+    data class Sequence(val statements: List<AST.Statement>) : AST()
+    sealed interface Statement
 
     // Represents a pipeline of commands connected by |
     data class Pipeline(
         val commands: List<Command>
-    ) : Command()
+    ) : AST(), Statement
+
+    sealed interface Command : Statement {}
+    sealed class BinaryCommand() : AST() {
+        abstract val left: SimpleCommand
+        abstract val right: Command?
+    }
+
+    // Represents logical AND (&&) between statements
+    data class And(
+        override val left: AST.SimpleCommand,
+        override val right: AST.Command?
+    ) : BinaryCommand(), Command
+
+    // Represents logical OR (||) between statements
+    data class Or(
+        override val left: AST.SimpleCommand,
+        override val right: AST.Command?
+    ) : BinaryCommand(), Command
+
+    data class Single(override val left: SimpleCommand) : BinaryCommand() {
+        override val right = null
+    }
+
 
     data class SimpleCommand(
         val name: String,
         val arguments: List<Argument> = emptyList()
-    ) : Command()
+    ) : AST(), Command
 
     // Represents an argument which can be a word or a substitution
     sealed class Argument

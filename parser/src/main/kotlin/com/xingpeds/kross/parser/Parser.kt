@@ -10,11 +10,13 @@ import kotlinx.coroutines.runBlocking
 /**
 input          ::= sequence
 
-sequence       ::= pipeline { operator pipeline }
+sequence       ::= pipeline { ; pipeline }
 
-operator       ::= '&&' | '||' | ';'
+operator       ::= '&&' | '||'
 
-pipeline       ::= command { '|' command }
+pipeline       ::= binaryCommand { '|' binaryCommand }
+
+binaryCommand ::= command { operator binaryCommand }
 
 command        ::= WORD { argument }
 
@@ -49,66 +51,104 @@ class Parser(
 
     private fun program(): AST.Program {
         println("Starting program method")
-        return AST.Program(parseCommand())
+        return AST.Program(sequence())
     }
 
-    private fun parseCommand(): List<AST.Command> {
-        println("Starting parseCommand method")
-//        val simpleCommand = parseSimpleCommand()
-//        val commandList = mutableListOf<AST.Command>()
-//        commandList.add(simpleCommand)
-//        while (tokenIsOperator()) {
-//            eat(TokenType.Semicolon)
-//            commandList.add(parseSimpleCommand())
-//        }
-//        return commandList
-        val commandList = mutableListOf<AST.Command>()
-        var command: AST.Command = parseSimpleCommand()
-        while (tokenIsOperator()) {
+    private fun sequence(): AST.Sequence {
+        val list = mutableListOf<AST.Statement>()
+        list.add(pipeline())
+        while (lookahead is Token.Semicolon) {
+            eat(TokenType.Semicolon)
+            list.add(pipeline())
+        }
+        return AST.Sequence(list)
+    }
+
+    private fun pipeline(): AST.Statement {
+        val list = mutableListOf<AST.Command>()
+        list.add(command())
+        while (lookahead is Token.Pipe) {
+            eat(TokenType.Pipe)
+            list.add(command())
+        }
+        if (list.size == 1) {
+            return list.first()
+        }
+        return AST.Pipeline(list)
+    }
+
+    private fun command(): AST.Command {
+        val left: AST.SimpleCommand = simpleCommand()
+        return when (lookahead) {
+            is Token.And -> {
+                and(left)
+            }
+
+            is Token.Or -> {
+                or(left)
+            }
+
+            else -> left
+        }
+    }
+
+    private fun simpleCommand(): AST.SimpleCommand {
+        val commandNameToken = eat(TokenType.Word, TokenType.Path)
+        val commandName = when (commandNameToken) {
+            is Token.Word -> commandNameToken.value
+            is Token.Path -> commandNameToken.value
+            else -> throw SyntaxError("expected a command name or path and got $commandNameToken")
+        }
+        val args: List<AST.Argument> = arguments()
+        return AST.SimpleCommand(commandName, args)
+    }
+
+    private val argTokens =
+        listOf(
+            TokenType.Word,
+            TokenType.Dollar,
+            TokenType.LeftParen,
+            TokenType.SingleQuotedString,
+            TokenType.DoubleQuotedString
+        )
+
+    private fun arguments(): List<AST.Argument> {
+        val args = mutableListOf<AST.Argument>()
+        while (argTokens.contains(lookahead.type)) {
             when (lookahead) {
-                Token.And -> command = parseAndCommand(command)
-                Token.Or -> command = parseOrCommand(command)
-                Token.Pipe -> {
-                    command = parsePipeline(command)
-                }
-
-                Token.Semicolon -> {
-                    eat(TokenType.Semicolon)
-                    commandList.add(command)
-                    command = parseSimpleCommand()
-                }
-
-                else -> throw SyntaxError("Unexpected token: $lookahead")
+                Token.Dollar -> args.add(variableSubstitution())
+                Token.LeftParen -> args.add(commandSubstitution())
+                is Token.DoubleQuote -> args.add(quoteArgument())
+                is Token.SingleQuote -> args.add(quoteArgument())
+                is Token.Word -> args.add(wordArgument())
+                else -> throw Exception("unreachable code, guarded by while loop")
             }
         }
-        commandList.add(command)
-        return commandList
+        return args
     }
 
-    private fun parseOrCommand(left: AST.Command): AST.Or {
-        println("Starting parseOrCommand method")
+    private fun variableSubstitution(): AST.VariableSubstitution {
+        eat(TokenType.Dollar)
+        val varNameToken = eat(TokenType.Word) as Token.Word
+        return AST.VariableSubstitution(varNameToken.value)
+    }
+
+    private fun wordArgument(): AST.WordArgument {
+        val word = eat(TokenType.Word) as Token.Word
+        return AST.WordArgument(word.value)
+    }
+
+    private fun or(left: AST.SimpleCommand): AST.Or {
         eat(TokenType.Or)
-        return AST.Or(left, parseSimpleCommand())
+        return AST.Or(left, command())
     }
 
-    private fun parseAndCommand(left: AST.Command): AST.And {
-        println("Starting parseAndCommand method")
+    private fun and(left: AST.SimpleCommand): AST.And {
         eat(TokenType.And)
-        return AST.And(left, parseSimpleCommand())
+        return AST.And(left, command())
     }
 
-    private fun parsePipeline(command: AST.Command): AST.Pipeline {
-        println("Starting parsePipeline method")
-        eat(TokenType.Pipe)
-        return if (command is AST.Pipeline) {
-            AST.Pipeline(command.commands + parseSimpleCommand())
-        } else {
-            AST.Pipeline(listOf(command, parseSimpleCommand()))
-        }
-    }
 
-    private fun tokenIsOperator(): Boolean = operators.contains(lookahead.type)
-    private val operators = listOf(TokenType.And, TokenType.Or, TokenType.Semicolon, TokenType.Pipe)
     private fun eat(vararg types: TokenType): Token = eat(types.toList())
     private fun eat(expectedTypes: List<TokenType>): Token {
         println("Starting eat method")
@@ -124,36 +164,6 @@ class Parser(
         }
     }
 
-    private val argTokens =
-        listOf(
-            TokenType.Word,
-            TokenType.Dollar,
-            TokenType.LeftParen,
-            TokenType.SingleQuotedString,
-            TokenType.DoubleQuotedString
-        )
-
-    private fun parseSimpleCommand(): AST.SimpleCommand {
-        println("Starting parseSimpleCommand method")
-        val command = when (val token = eat(TokenType.Word, TokenType.Path)) {
-            is Token.Word -> token.value
-            is Token.Path -> token.value
-            else -> throw SyntaxError("Expected command name or path")
-        }
-        val arguments = mutableListOf<AST.Argument>()
-        while (argTokens.contains(lookahead.type)) {
-            val arg: AST.Argument = when (lookahead) {
-                is Token.Dollar -> parseVariableSubstitution()
-                is Token.LeftParen -> parseCommandSubstitution()
-                else -> parseWordArgument()
-            }
-            arguments.add(arg)
-        }
-        return AST.SimpleCommand(
-            name = command,
-            arguments = arguments
-        )
-    }
 
     private fun advance(): Token = runBlocking {
         println("Starting advance method")
@@ -162,7 +172,7 @@ class Parser(
         return@runBlocking token
     }
 
-    private fun parseCommandSubstitution(): AST.CommandSubstitution {
+    private fun commandSubstitution(): AST.CommandSubstitution {
         println("Starting parseCommandSubstitution method")
         eat(TokenType.LeftParen)
         val tokensForSub = mutableListOf<Token>()
@@ -208,36 +218,14 @@ class Parser(
         return AST.CommandSubstitution(subParser.parse())
     }
 
-    private fun parseWordArgument(): AST.Argument {
-        return when (lookahead) {
-            is Token.Word -> return parseSimpleWordArgument()
-            is Token.SingleQuote, is Token.DoubleQuote -> parseQuoteArgument()
-            else -> throw SyntaxError("Unexpected token: $lookahead")
-        }
-    }
 
-    private fun parseSimpleWordArgument(): AST.WordArgument {
-        val token = eat(TokenType.Word) as Token.Word
-        return AST.WordArgument(token.value)
-    }
-
-    //
-    private val quotes = listOf(TokenType.DoubleQuotedString, TokenType.SingleQuotedString)
-    private fun isQuote(): Boolean = quotes.contains(lookahead.type)
-    private fun parseQuoteArgument(): AST.WordArgument {
+    private fun quoteArgument(): AST.WordArgument {
         val token = eat(TokenType.DoubleQuotedString, TokenType.SingleQuotedString)
         if (token is Token.Literal) {
             return AST.WordArgument(token.value)
         } else {
             throw SyntaxError("Unexpected token: $token")
         }
-    }
-
-    private fun parseVariableSubstitution(): AST.VariableSubstitution {
-        println("Starting parseVariableSubstitution method")
-        eat(TokenType.Dollar)
-        val varToken = eat(TokenType.Word) as Token.Word
-        return AST.VariableSubstitution(varToken.value)
     }
 
 }

@@ -9,7 +9,9 @@ class ParserTest {
         val program = "hello"
         val parser = Parser(program)
         val ast = parser.parse()
-        val expected = AST.Program(listOf(AST.SimpleCommand("hello")))
+        val expected = AST.Program(
+            AST.Sequence(listOf(AST.SimpleCommand("hello")))
+        )
         assertEquals(expected, ast)
     }
 
@@ -18,7 +20,16 @@ class ParserTest {
         val program = "hello world"
         val parser = Parser(program)
         val ast = parser.parse()
-        val expected = AST.Program(listOf(AST.SimpleCommand("hello", listOf(AST.WordArgument("world")))))
+        val expected = AST.Program(
+            AST.Sequence(
+                listOf(
+                    AST.SimpleCommand(
+                        "hello",
+                        arguments = listOf(AST.WordArgument("world"))
+                    )
+                )
+            )
+        )
         assertEquals(expected, ast)
     }
 
@@ -27,8 +38,16 @@ class ParserTest {
         val program = "hello world 2"
         val parser = Parser(program)
         val ast = parser.parse()
-        val expected =
-            AST.Program(listOf(AST.SimpleCommand("hello", listOf(AST.WordArgument("world"), AST.WordArgument("2")))))
+        val expected = AST.Program(
+            AST.Sequence(
+                statements = listOf(
+                    AST.SimpleCommand(
+                        "hello",
+                        arguments = listOf(AST.WordArgument("world"), AST.WordArgument("2"))
+                    )
+                )
+            )
+        )
         assertEquals(expected, ast)
     }
 
@@ -39,9 +58,11 @@ class ParserTest {
         val ast = parser.parse()
 
         val expected = AST.Program(
-            listOf(
-                AST.SimpleCommand("echo", listOf(AST.WordArgument("hello"))),
-                AST.SimpleCommand("echo", listOf(AST.WordArgument("world")))
+            statements = AST.Sequence(
+                statements = listOf(
+                    AST.SimpleCommand("echo", arguments = listOf(AST.WordArgument("world"))),
+                    AST.SimpleCommand("echo", arguments = listOf(AST.WordArgument("world"))),
+                )
             )
         )
         assertEquals(expected, ast)
@@ -53,7 +74,13 @@ class ParserTest {
         val parser = Parser(program)
         val ast = parser.parse()
 
-        val expected = AST.Program(listOf(AST.And(AST.SimpleCommand("command1"), AST.SimpleCommand("command2"))))
+        val expected = AST.Program(
+            AST.Sequence(
+                listOf(
+                    AST.And(AST.SimpleCommand("command1"), AST.SimpleCommand("command2")),
+                )
+            )
+        )
         assertEquals(expected, ast)
     }
 
@@ -62,8 +89,13 @@ class ParserTest {
         val program = "command1 || command2"
         val parser = Parser(program)
         val ast = parser.parse()
-
-        val expected = AST.Program(listOf(AST.Or(AST.SimpleCommand("command1"), AST.SimpleCommand("command2"))))
+        val expected = AST.Program(
+            AST.Sequence(
+                listOf(
+                    AST.Or(AST.SimpleCommand("command1"), AST.SimpleCommand("command2")),
+                )
+            )
+        )
         assertEquals(expected, ast)
     }
 
@@ -73,10 +105,9 @@ class ParserTest {
         val parser = Parser(program)
         val ast = parser.parse()
         val expected = AST.Program(
-            listOf(
-                AST.SimpleCommand(
-                    name = "echo",
-                    arguments = listOf(AST.WordArgument("'hello world'"))
+            AST.Sequence(
+                listOf(
+                    AST.SimpleCommand("echo", arguments = listOf(AST.WordArgument("'hello world'"))),
                 )
             )
         )
@@ -89,10 +120,9 @@ class ParserTest {
         val parser = Parser(program)
         val ast = parser.parse()
         val expected = AST.Program(
-            listOf(
-                AST.SimpleCommand(
-                    name = "echo",
-                    arguments = listOf(AST.WordArgument("\"hello world\""))
+            AST.Sequence(
+                listOf(
+                    AST.SimpleCommand("echo", arguments = listOf(AST.WordArgument("\"hello world\""))),
                 )
             )
         )
@@ -105,12 +135,14 @@ class ParserTest {
         val parser = Parser(program)
         val ast = parser.parse()
         val expected = AST.Program(
-            listOf(
-                AST.Pipeline(
-                    listOf(
-                        AST.SimpleCommand("ls"),
-                        AST.SimpleCommand("grep", listOf(AST.WordArgument("file"))),
-                        AST.SimpleCommand("cowsay")
+            AST.Sequence(
+                listOf(
+                    AST.Pipeline(
+                        listOf(
+                            AST.SimpleCommand("ls"),
+                            AST.SimpleCommand("grep", arguments = listOf(AST.WordArgument("file"))),
+                            AST.SimpleCommand("cowsay")
+                        )
                     )
                 )
             )
@@ -124,11 +156,13 @@ class ParserTest {
         val parser = Parser(program)
         val ast = parser.parse()
         val expected = AST.Program(
-            listOf(
-                AST.Pipeline(
-                    listOf(
-                        AST.SimpleCommand("ls"),
-                        AST.SimpleCommand("grep", listOf(AST.WordArgument("file")))
+            AST.Sequence(
+                listOf(
+                    AST.Pipeline(
+                        listOf(
+                            AST.SimpleCommand("ls"),
+                            AST.SimpleCommand("grep", arguments = listOf(AST.WordArgument("file"))),
+                        )
                     )
                 )
             )
@@ -141,7 +175,9 @@ class ParserTest {
         val program = "echo simple"
         val parser = Parser(program)
         val ast = parser.parse()
-        val expected = AST.Program(listOf(AST.SimpleCommand("echo", listOf(AST.WordArgument("simple")))))
+        val expected = AST.Program(
+            AST.Sequence(listOf(AST.SimpleCommand("echo", arguments = listOf(AST.WordArgument("simple")))))
+        )
         assertEquals(expected, ast)
     }
 
@@ -150,8 +186,19 @@ class ParserTest {
         val program = "echo \$MY_VAR"
         val parser = Parser(program)
         val ast = parser.parse()
-        println(ast)
         // Check if the AST contains a VariableSubstitution
+        val expected = AST.Program(
+            AST.Sequence(
+                listOf(
+                    AST.SimpleCommand(
+                        "echo", arguments = listOf(
+                            AST.VariableSubstitution("MY_VAR")
+                        )
+                    )
+                )
+            )
+        )
+        assertEquals(expected, ast)
     }
 
     @Test
@@ -159,7 +206,19 @@ class ParserTest {
         val program = "echo (date)"
         val parser = Parser(program)
         val ast = parser.parse()
-        println(ast)
-        // Check if the AST contains a CommandSubstitution
+        val expected = AST.Program(
+            AST.Sequence(
+                listOf(
+                    AST.SimpleCommand(
+                        "echo", arguments = listOf(
+                            AST.CommandSubstitution(
+                                AST.Program(AST.Sequence(listOf(AST.SimpleCommand("date")))),
+                            )
+                        )
+                    ),
+                )
+            )
+        )
+        assertEquals(expected, ast)
     }
 }
