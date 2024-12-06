@@ -12,6 +12,22 @@ class ExecutorTest {
     }
 
     @Test
+    fun commandsub() {
+        val subcommand = AST.Program(listOf(AST.SimpleCommand(name = "which", listOf(AST.WordArgument("fish")))))
+        val ast = AST.Program(listOf(AST.SimpleCommand(name = "echo", listOf(AST.CommandSubstitution(subcommand)))))
+        val executor = Executor(ast)
+        executor.execute()
+    }
+
+    @Test
+    fun variableSubstitution() {
+        val env = mapOf("hello" to "world")
+        val ast = AST.Program(listOf(AST.SimpleCommand(name = "echo", listOf(AST.VariableSubstitution("hello")))))
+        val executor = Executor(ast, env = env)
+        executor.execute()
+    }
+
+    @Test
     fun processbuildertest() {
         val process = ProcessBuilder("echo", "hello world")
             .redirectOutput(ProcessBuilder.Redirect.PIPE) // Ensure output is accessible
