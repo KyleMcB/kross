@@ -61,6 +61,8 @@ class Lexer(
             TokenType.EOF -> Token.EOF
             TokenType.SingleQuotedString -> Token.SingleQuote(text)
             TokenType.DoubleQuotedString -> Token.DoubleQuote(text)
+            TokenType.LeftBracket -> Token.LeftBracket
+            TokenType.RightBracket -> Token.RightBracket
         }
     }
 }

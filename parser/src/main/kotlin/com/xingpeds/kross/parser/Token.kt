@@ -2,6 +2,8 @@ package com.xingpeds.kross.parser
 
 
 sealed class Token {
+    sealed interface Operator
+
     abstract val type: TokenType
 
     data object Dollar : Token() {
@@ -34,11 +36,11 @@ sealed class Token {
         override val type = TokenType.Pipe
     }
 
-    data object And : Token() {
+    data object And : Token(), Operator {
         override val type = TokenType.And
     }
 
-    data object Or : Token() {
+    data object Or : Token(), Operator {
         override val type = TokenType.Or
     }
 
@@ -48,6 +50,14 @@ sealed class Token {
 
     data object RightParen : Token() {
         override val type = TokenType.RightParen
+    }
+
+    data object RightBracket : Token() {
+        override val type: TokenType = TokenType.RightBracket
+    }
+
+    data object LeftBracket : Token() {
+        override val type: TokenType = TokenType.LeftBracket
     }
 
     data object EOF : Token() {

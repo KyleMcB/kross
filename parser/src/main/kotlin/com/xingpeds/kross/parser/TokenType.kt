@@ -35,5 +35,7 @@ enum class TokenType(
     ), // Handles escaped characters within double quotes
     Path(Regex("^/([^\\s$sc]*)"), 5),
     Dollar(Regex("^\\$"), 7),
+    LeftBracket(Regex("^\\{"), 6),
+    RightBracket(Regex("^\\}"), 6),
     EOF(Regex("^$"), 8);
 }
