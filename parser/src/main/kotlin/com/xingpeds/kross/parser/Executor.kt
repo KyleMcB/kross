@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -72,6 +73,15 @@ class Executor(
 
     private suspend fun exePipeline(statement: AST.Pipeline) {
 
+        if (statement.commands.size == 2) {
+            exeSmallPipe(statement)
+        }
+    }
+
+    private suspend fun exeSmallPipe(pipe: AST.Pipeline) {
+        val output = ByteArrayOutputStream()
+        val stream = Streams(output = output)
+        exeCommand(pipe.commands[0])
     }
 
     private suspend fun exeSimpleCommand(statement: AST.SimpleCommand): Int {
@@ -109,6 +119,9 @@ class Executor(
             inputJob.join()
             outputJob.join()
             errorJob.join()
+            process.errorStream.close()
+            process.inputStream.close()
+            process.outputStream.close()
 
             returnValues.add(exitCode)
             exitCode

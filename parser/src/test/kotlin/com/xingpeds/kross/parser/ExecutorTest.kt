@@ -147,6 +147,27 @@ class ExecutorTest {
         assertEquals("hello\nworld\n", output.toString())
     }
 
+    @Test
+    fun pipe1() = runTest {
+        val ast = AST.Program(
+            AST.Sequence(
+                listOf(
+                    AST.Pipeline(
+                        listOf(
+                            AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.WordArgument("hello"))),
+                            AST.SimpleCommand(AST.CommandName.Word("cat"))
+                        )
+                    )
+                )
+            )
+        )
+        val output = StringBuilder()
+        val streams = Streams(output = output.asOutputStream())
+        val executor = Executor(ast, streams = streams)
+        executor.execute()
+        assertEquals("hello", output.toString())
+    }
+
 //
 //    @Test
 //    fun commandsub() {
