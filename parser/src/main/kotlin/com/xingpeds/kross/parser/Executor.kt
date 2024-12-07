@@ -28,15 +28,64 @@ class Executor {
 
     private suspend fun exePipeline(pipeline: AST.Command.Pipeline, stream: Stream, env: Map<String, String>) {
         if (pipeline.commands.size == 1) {
-            exeSimpleCommand(pipeline.commands.first(), stream, env)
+            exeSimpleCommand(pipeline.commands.first(), stream, env).finish()
         }
     }
 
-    private suspend fun exeSimpleCommand(command: AST.SimpleCommand, stream: Stream, env: Map<String, String>) {
-        when (command.name) {
-            is AST.CommandName.Path -> TODO()
-            is AST.CommandName.Word -> TODO()
+    private suspend fun exeSimpleCommand(
+        command: AST.SimpleCommand,
+        stream: Stream,
+        env: Map<String, String>
+    ): ProcessResult {
+        return when (command.name) {
+            is AST.CommandName.Path -> exeExternalProcess(command.name.value, command.arguments, stream, env)
+            is AST.CommandName.Word -> {
+                if (internalCommandsContains(command.name.value)) {
+                    exeInternalCommandsContains(command.name.value, command.arguments, stream, env)
+                } else {
+                    exeExternalProcess(command.name.value, command.arguments, stream, env)
+                }
+            }
         }
+    }
+
+    private suspend fun exeInternalCommandsContains(
+        name: String,
+        arguments: List<AST.Argument>,
+        stream: Stream,
+        env: Map<String, String>
+    ): ProcessResult {
+        TODO()
+    }
+
+    data class ProcessResult(
+        val finish: () -> Int,
+        val output: InputStream,
+    )
+
+    private fun internalCommandsContains(name: String): Boolean {
+        return false
+    }
+
+    private suspend fun exeExternalProcess(
+        name: String,
+        arguments: List<AST.Argument>,
+        stream: Stream,
+        env: Map<String, String>
+    ): ProcessResult {
+
+        val resolvedArguments: List<String> = arguments.map { arg ->
+            when (arg) {
+                is AST.Argument.CommandSubstitution -> TODO()
+                is AST.Argument.VariableSubstitution -> env[arg.variableName] ?: ""
+                is AST.Argument.WordArgument -> arg.value
+            }
+        }
+        println(listOf(name) + resolvedArguments)
+        val pb = ProcessBuilder(listOf(name) + resolvedArguments)
+        pb.inheritIO()
+        val process = pb.start()
+        return ProcessResult(output = process.inputStream, finish = process::waitFor)
     }
 
     suspend fun exeAnd(command: AST.Command.And, stream: Stream, env: Map<String, String>) {

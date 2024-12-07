@@ -1,22 +1,28 @@
-//package com.xingpeds.kross.parser
-//
-//import kotlinx.coroutines.test.runTest
-//import kotlin.test.Test
-//import kotlin.test.assertEquals
-//
-//
-//class ExecutorTest {
-//    @Test
-//    fun simpleEcho() = runTest {
-//        val ast = AST.Program(
-//            AST.Sequence(
-//                listOf(AST.SimpleCommand(name = AST.CommandName.Word("echo"), listOf(AST.WordArgument("hello world"))))
-//            )
-//        )
-//        val executor = Executor(ast)
-//        executor.execute()
-//    }
-//
+package com.xingpeds.kross.parser
+
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+
+
+class ExecutorTest {
+    @Test
+    fun simpleEcho() = runTest {
+        val ast = AST.Program(
+            commands = listOf(
+                AST.Command.Pipeline(
+                    listOf(
+                        AST.SimpleCommand(
+                            AST.CommandName.Word("echo"),
+                            listOf(AST.Argument.WordArgument("hello world"))
+                        )
+                    )
+                )
+            )
+        )
+        val executor = Executor()
+        executor.execute(ast)
+    }
+
 //    @Test
 //    fun variableSub() = runTest {
 //        val env = mapOf("hello" to "world")
@@ -263,4 +269,4 @@
 ////        executor.simpleCommand(command, input = input, output = output.asOutputStream())
 ////        println("Captured Output: ${output.toString().trim()}")
 ////    }
-//}
+}
