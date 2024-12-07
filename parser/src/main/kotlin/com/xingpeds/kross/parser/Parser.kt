@@ -33,7 +33,11 @@ class Parser {
             return token
         }
         if (tokens.contains(token.type)) {
-            return advance()
+            try {
+                return advance()
+            } catch (e: NoSuchElementException) {
+                throw SyntaxError("Unexpected end of input, expected ${tokens.joinToString(", ")}")
+            }
         } else {
             throw Exception("Unexpected token $token\nExpected one of ${tokens.joinToString(", ")}")
         }
@@ -96,15 +100,27 @@ class Parser {
 
     private suspend fun parseArgumentList(): List<AST.Argument> {
         val args = mutableListOf<AST.Argument>()
-        while (peek() is Token.Dollar || peek() is Token.LeftParen || peek() is Token.Word) {
+        while (peek() is Token.Dollar || peek() is Token.LeftParen || peek() is Token.Word || peek() is Token.SingleQuote || peek() is Token.DoubleQuote) {
             when (peek()) {
                 is Token.Dollar -> args.add(parseVariable())
                 is Token.Word -> args.add(parseWordArgument())
                 is Token.LeftParen -> args.add(parseCommandSubstitution())
+                is Token.SingleQuote -> args.add(parseSingleQuote())
+                is Token.DoubleQuote -> args.add(parseDoubleQuote())
                 else -> throw Exception("") // this line is unreachable because of the while loop condition
             }
         }
         return args
+    }
+
+    private fun parseDoubleQuote(): AST.Argument.WordArgument {
+        val token = eat(TokenType.DoubleQuotedString) as Token.DoubleQuote
+        return AST.Argument.WordArgument(token.value)
+    }
+
+    private suspend fun parseSingleQuote(): AST.Argument.WordArgument {
+        val token = eat(TokenType.SingleQuotedString) as Token.SingleQuote
+        return AST.Argument.WordArgument(token.value)
     }
 
     private suspend fun parseVariable(): AST.Argument.VariableSubstitution {
@@ -124,7 +140,7 @@ class Parser {
         eat(TokenType.LeftParen)
         val tokensForSub = mutableListOf<Token>()
         var nested = 0
-        while (peek() !is Token.RightParen || nested > 0) {
+        while (peek() !is Token.EOF || nested > 0) {
             when (peek()) {
                 is Token.LeftParen -> {
                     nested++
@@ -145,6 +161,7 @@ class Parser {
                 else -> tokensForSub.add(advance())
             }
         }
+        tokensForSub.add(Token.EOF)
         val subFlow = tokensForSub.asFlow()
         val subParser = Parser()
         val subProgram = subParser.parse(subFlow)
