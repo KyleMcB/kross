@@ -36,7 +36,9 @@ sealed class AST {
         val commands: List<Command>
     ) : AST(), Statement
 
-    sealed interface Command : Statement {}
+    sealed interface Command : Statement {
+    }
+
     sealed class BinaryCommand() : AST() {
         abstract val left: SimpleCommand
         abstract val right: Command?
