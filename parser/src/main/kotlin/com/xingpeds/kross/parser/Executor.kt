@@ -1,15 +1,28 @@
 package com.xingpeds.kross.parser
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
+
+data class Streams(
+    val input: InputStream = System.`in`,
+    val output: OutputStream = System.out,
+    val error: OutputStream = System.err
+) {}
 
 class Executor(
     val program: AST.Program,
     val localCommands: Set<String> = emptySet(),
     val environment: Map<String, String> = emptyMap(),
+    val streams: Streams = Streams(),
 ) {
-    suspend fun execute() {
+    private val returnValues = mutableListOf<Int>()
+    suspend fun execute(): List<Int> {
         exeProgram(program)
+        return returnValues
     }
 
     private suspend fun exeProgram(program: AST.Program) {
@@ -24,10 +37,36 @@ class Executor(
 
     private suspend fun exeStatement(statement: AST.Statement) {
         when (statement) {
-            is AST.And -> TODO()
-            is AST.Or -> TODO()
+            is AST.And -> exeAnd(statement)
+            is AST.Or -> exeOr(statement)
             is AST.SimpleCommand -> exeSimpleCommand(statement)
             is AST.Pipeline -> exePipeline(statement)
+        }
+    }
+
+    private suspend fun exeOr(or: AST.Or): Int {
+        val leftResult = exeSimpleCommand(or.left)
+        if (leftResult != 0) {
+            val right = or.right ?: throw SyntaxError("expected the right side of an OR, found $or")
+            return exeCommand(right) * leftResult
+        }
+        return leftResult
+    }
+
+    private suspend fun exeAnd(statement: AST.And): Int {
+        val leftResult = exeSimpleCommand(statement.left)
+        if (leftResult == 0) {
+            val right = statement.right ?: throw SyntaxError("expected a right expression for and got ${statement}")
+            return exeCommand(statement.right)
+        }
+        return leftResult
+    }
+
+    private suspend fun exeCommand(command: AST.Command): Int {
+        return when (command) {
+            is AST.And -> exeAnd(command)
+            is AST.Or -> exeOr(command)
+            is AST.SimpleCommand -> exeSimpleCommand(command)
         }
     }
 
@@ -35,8 +74,8 @@ class Executor(
 
     }
 
-    private suspend fun exeSimpleCommand(statement: AST.SimpleCommand) {
-        when (statement.name) {
+    private suspend fun exeSimpleCommand(statement: AST.SimpleCommand): Int {
+        return when (statement.name) {
             is AST.CommandName.Path -> exeExternalCommand(statement.name.value, statement.arguments)
             is AST.CommandName.Word -> if (localCommands.contains(statement.name.value)) {
                 exeLocalCommand(statement.name.value, statement.arguments)
@@ -45,31 +84,37 @@ class Executor(
         }
     }
 
-    private suspend fun exeLocalCommand(command: String, args: List<AST.Argument>) {
+    private suspend fun exeLocalCommand(command: String, args: List<AST.Argument>): Int {
         TODO()
     }
 
     private suspend fun exeExternalCommand(
         name: String,
         args: List<AST.Argument>,
-        input: InputStream? = null,
-        output: OutputStream? = null,
-        err: OutputStream? = null
-    ): Int {
-        // todo I need to get input, output, and err and env in here somehow
-        // context reciever is tempting
+        streams: Streams = this.streams
+    ): Int = coroutineScope {
         val resolvedArgs: List<String> = resolveArguments(args)
         val pb = ProcessBuilder(listOf(name) + resolvedArgs)
-        if (input == null) pb.redirectOutput(ProcessBuilder.Redirect.INHERIT)
-        if (output == null) pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
-        if (err == null) pb.redirectError(ProcessBuilder.Redirect.INHERIT)
         val process = pb.start()
-        input?.copyTo(process.outputStream)
-        output?.let { process.inputStream.copyTo(it) }
-        err?.let { process.errorStream.copyTo(it) }
-        val code = process.waitFor()
-        process.destroy()
-        return code
+        try {
+            // Launch coroutines for copying streams
+            val inputJob = launch { streams.input.copyToSuspend(process.outputStream) }
+            val outputJob = launch { process.inputStream.copyToSuspend(streams.output) }
+            val errorJob = launch { process.errorStream.copyToSuspend(streams.error) }
+
+            // Wait for the process to complete
+            val exitCode = process.waitFor()
+
+            // Ensure all jobs finish
+            inputJob.join()
+            outputJob.join()
+            errorJob.join()
+
+            returnValues.add(exitCode)
+            exitCode
+        } finally {
+            process.destroy()
+        }
     }
 
     private suspend fun resolveArguments(args: List<AST.Argument>): List<String> {
@@ -88,5 +133,43 @@ class Executor(
 fun StringBuilder.asOutputStream(): OutputStream = object : OutputStream() {
     override fun write(b: Int) {
         append(b.toChar())
+    }
+}
+
+fun StringBuilder.asInputStream(): InputStream = object : InputStream() {
+    private var position = 0 // Tracks the current read position
+
+    override fun read(): Int {
+        // If the position is beyond the StringBuilder length, return -1 (end of stream)
+        if (position >= this@asInputStream.length) {
+            return -1
+        }
+        // Return the character at the current position as an integer and advance the position
+        return this@asInputStream[position++].code
+    }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        // If no more data, return -1 (end of stream)
+        if (position >= this@asInputStream.length) {
+            return -1
+        }
+
+        // Calculate how many bytes we can read
+        val bytesToRead = minOf(len, this@asInputStream.length - position)
+        for (i in 0 until bytesToRead) {
+            b[off + i] = this@asInputStream[position++].code.toByte()
+        }
+        return bytesToRead
+    }
+}
+
+suspend fun InputStream.copyToSuspend(out: OutputStream, bufferSize: Int = DEFAULT_BUFFER_SIZE) {
+    withContext(Dispatchers.IO) {
+        val buffer = ByteArray(bufferSize)
+        var bytesRead: Int
+        while (read(buffer).also { bytesRead = it } >= 0) {
+            out.write(buffer, 0, bytesRead)
+            out.flush()
+        }
     }
 }
