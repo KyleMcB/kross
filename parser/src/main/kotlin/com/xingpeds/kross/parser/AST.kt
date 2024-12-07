@@ -1,64 +1,49 @@
 package com.xingpeds.kross.parser
 
-/**
+/*
 input          ::= sequence
-
-sequence       ::= pipeline { ; pipeline }
-
+sequence       ::= command { ';' command }
+command        ::= pipeline { operator pipeline }
 operator       ::= '&&' | '||'
-
-pipeline       ::= binaryCommand { '|' binaryCommand }
-
-binaryCommand ::= command { operator binaryCommand }
-
-command        ::= WORD { argument }
-
+pipeline       ::= simpleCommand { '|' simpleCommand }
+simpleCommand  ::= WORD { argument }
 argument       ::= WORD | substitution
-
 substitution   ::= variable_substitution | command_substitution
-
 variable_substitution ::= '$' '{'? WORD '}'?
-
-command_substitution ::= '`' command_line '`' | '$(' command_line ')'
-
+command_substitution ::= '$(' command_line ')'
 command_line   ::= input
- */
+*/
+typealias Sequence = List<AST.Command>
+
 sealed class AST {
+    data class Program(val commands: Sequence) : AST()
 
-    data class Program(val statements: Sequence) : AST()
 
-
-    data class Sequence(val statements: List<AST.Statement>) : AST()
-    sealed interface Statement
-
-    // Represents a pipeline of commands connected by |
-    data class Pipeline(
-        val commands: List<Command>
-    ) : AST(), Statement
-
-    sealed interface Command : Statement {
+    /**
+     * A command is one or more pipelines connected by logical operators (&& or ||).
+     * We'll model this as a tree: a command can be just one pipeline, or a logical node (And/Or)
+     * connecting two Commands.
+     */
+    sealed class Command : AST() {
+        data class Single(val pipeline: Pipeline) : Command()
+        data class And(val left: Command, val right: Command) : Command()
+        data class Or(val left: Command, val right: Command) : Command()
     }
 
-    sealed class BinaryCommand() : AST() {
-        abstract val left: SimpleCommand
-        abstract val right: Command?
-    }
+    /**
+     * A pipeline is a sequence of simple commands connected by `|`.
+     * e.g. cmd1 | cmd2 | cmd3
+     */
+    data class Pipeline(val commands: List<SimpleCommand>) : AST()
 
-    // Represents logical AND (&&) between statements
-    data class And(
-        override val left: AST.SimpleCommand,
-        override val right: AST.Command?
-    ) : BinaryCommand(), Command
-
-    // Represents logical OR (||) between statements
-    data class Or(
-        override val left: AST.SimpleCommand,
-        override val right: AST.Command?
-    ) : BinaryCommand(), Command
-
-    data class Single(override val left: SimpleCommand) : BinaryCommand() {
-        override val right = null
-    }
+    /**
+     * A simple command is a single executable plus arguments.
+     * e.g. `echo hello world` or `grep foo`
+     */
+    data class SimpleCommand(
+        val name: CommandName,
+        val arguments: List<Argument> = emptyList()
+    ) : AST()
 
     sealed class CommandName {
         abstract val value: String
@@ -67,23 +52,12 @@ sealed class AST {
         data class Path(override val value: String) : CommandName()
     }
 
-    data class SimpleCommand(
-        val name: CommandName,
-        val arguments: List<Argument> = emptyList()
-    ) : AST(), Command
-
-    // Represents an argument which can be a word or a substitution
-    sealed class Argument
-
-    data class WordArgument(
-        val value: String
-    ) : Argument()
-
-    data class VariableSubstitution(
-        val variableName: String
-    ) : Argument()
-
-    data class CommandSubstitution(
-        val commandLine: AST.Program
-    ) : Argument()
+    /**
+     * Arguments are either a plain word or some form of substitution.
+     */
+    sealed class Argument : AST() {
+        data class WordArgument(val value: String) : Argument()
+        data class VariableSubstitution(val variableName: String) : Argument()
+        data class CommandSubstitution(val commandLine: Program) : Argument()
+    }
 }
