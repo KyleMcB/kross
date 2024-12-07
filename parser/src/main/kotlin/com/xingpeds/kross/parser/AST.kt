@@ -25,16 +25,15 @@ sealed class AST {
      * connecting two Commands.
      */
     sealed class Command : AST() {
-        data class Single(val pipeline: Pipeline) : Command()
+        /**
+         * A pipeline is a sequence of simple commands connected by `|`.
+         * e.g. cmd1 | cmd2 | cmd3
+         */
+        data class Pipeline(val commands: List<SimpleCommand>) : Command()
         data class And(val left: Command, val right: Command) : Command()
         data class Or(val left: Command, val right: Command) : Command()
     }
 
-    /**
-     * A pipeline is a sequence of simple commands connected by `|`.
-     * e.g. cmd1 | cmd2 | cmd3
-     */
-    data class Pipeline(val commands: List<SimpleCommand>) : AST()
 
     /**
      * A simple command is a single executable plus arguments.
