@@ -81,15 +81,37 @@ class Executor {
                 is AST.Argument.WordArgument -> arg.value
             }
         }
-        println(listOf(name) + resolvedArguments)
-        val pb = ProcessBuilder(listOf(name) + resolvedArguments)
-        pb.inheritIO()
+        val list = listOf(name) + resolvedArguments
+        println(list)
+        val pb = ProcessBuilder(list)
+        if (stream.errorStream != null) {
+            pb.redirectError(ProcessBuilder.Redirect.PIPE)
+        } else {
+            pb.redirectError(ProcessBuilder.Redirect.INHERIT)
+        }
+        if (stream.outputStream != null) {
+            pb.redirectOutput(ProcessBuilder.Redirect.PIPE)
+        } else {
+            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT)
+        }
+        if (stream.inputStream != null) {
+            pb.redirectInput(ProcessBuilder.Redirect.PIPE)
+        } else {
+            pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
+        }
         val process = pb.start()
+        stream.inputStream?.copyToSuspend(process.outputStream)
+        if (stream.outputStream != null) {
+            process.inputStream.copyToSuspend(stream.outputStream)
+        }
+        if (stream.errorStream != null) {
+            process.errorStream.copyToSuspend(stream.errorStream)
+        }
         return ProcessResult(output = process.inputStream, finish = process::waitFor)
     }
 
     suspend fun exeAnd(command: AST.Command.And, stream: Stream, env: Map<String, String>) {
-
+        val result = exePipeline(command.left)
     }
 }
 

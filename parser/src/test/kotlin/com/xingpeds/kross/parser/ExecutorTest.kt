@@ -2,6 +2,7 @@ package com.xingpeds.kross.parser
 
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 
 class ExecutorTest {
@@ -20,44 +21,57 @@ class ExecutorTest {
             )
         )
         val executor = Executor()
-        executor.execute(ast)
+        val output = StringBuilder()
+        val streams = Executor.Stream(outputStream = output.asOutputStream())
+        executor.execute(ast, stream = streams)
+        assertEquals("hello world", output.toString().trim())
     }
 
-//    @Test
-//    fun variableSub() = runTest {
-//        val env = mapOf("hello" to "world")
-//        val ast = AST.Program(
-//            AST.Sequence(
-//                listOf(
-//                    AST.SimpleCommand(
-//                        AST.CommandName.Word("echo"),
-//                        arguments = listOf(AST.VariableSubstitution("hello"))
-//                    )
-//                )
-//            )
-//        )
-//        val executor = Executor(ast, environment = env)
-//        executor.execute()
-//    }
-//
-//    @Test
-//    fun and1() = runTest {
-//        val ast = AST.Program(
-//            AST.Sequence(
-//                listOf(
-//                    AST.And(
-//                        left = AST.SimpleCommand(AST.CommandName.Word("true")),
-//                        right = AST.SimpleCommand(AST.CommandName.Word("true"))
-//                    )
-//                )
-//            )
-//        )
-//        val executor = Executor(ast)
-//        val returnCodes = executor.execute()
+    @Test
+    fun variableSub() = runTest {
+        val env = mapOf("hello" to "world")
+        val ast = AST.Program(
+            listOf(
+                AST.Command.Pipeline(
+                    listOf(
+                        AST.SimpleCommand(
+                            AST.CommandName.Word("echo"),
+                            listOf(AST.Argument.VariableSubstitution("hello"))
+                        )
+                    )
+                )
+            )
+        )
+        val executor = Executor()
+        executor.execute(ast, env = env)
+    }
+
+    @Test
+    fun and1() = runTest {
+        val ast = AST.Program(
+            listOf(
+
+                AST.Command.And(
+                    left = AST.Command.Pipeline(
+                        listOf(AST.SimpleCommand(AST.CommandName.Word("true")))
+                    ),
+                    right = AST.Command.Pipeline(
+                        listOf(
+                            AST.SimpleCommand(
+                                AST.CommandName.Word("echo"),
+                                listOf(AST.Argument.WordArgument("hello"))
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        val executor = Executor()
+        val returnCodes = executor.execute(ast)
 //        assertEquals(0, returnCodes[0])
 //        assertEquals(0, returnCodes[1])
-//
-//    }
+
+    }
 //
 //    @Test
 //    fun and2() = runTest {
