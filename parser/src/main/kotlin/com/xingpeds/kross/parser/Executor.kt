@@ -1,49 +1,137 @@
 package com.xingpeds.kross.parser
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
 
 class Executor {
-    data class Stream(
+    private val results = mutableListOf<Int>()
+
+    data class Streams(
         val inputStream: InputStream? = null,
         val outputStream: OutputStream? = null,
         val errorStream: OutputStream? = null,
     )
 
-    suspend fun execute(ast: AST.Program, stream: Stream = Stream(), env: Map<String, String> = emptyMap()) {
+    suspend fun execute(
+        ast: AST.Program,
+        streams: Streams = Streams(),
+        env: Map<String, String> = emptyMap()
+    ): List<Int> {
+        println("Entering execute with ast: $ast, streams: $streams, env: $env")
         for (command in ast.commands) {
-            exeCommand(command, stream, env)
+            exeCommand(command, streams, env)
+        }
+        return results
+    }
+
+    suspend fun exeCommand(command: AST.Command, streams: Streams, env: Map<String, String>): Int {
+        println("Entering exeCommand with command: $command, streams: $streams, env: $env")
+        return when (command) {
+            is AST.Command.And -> exeAnd(command, streams, env)
+            is AST.Command.Or -> exeOr(command, streams, env)
+            is AST.Command.Pipeline -> exePipeline(command, streams, env)
         }
     }
 
-    suspend fun exeCommand(command: AST.Command, stream: Stream, env: Map<String, String>) {
-        when (command) {
-            is AST.Command.And -> exeAnd(command, stream, env)
-            is AST.Command.Or -> TODO()
-            is AST.Command.Pipeline -> exePipeline(command, stream, env)
+    private suspend fun exeOr(command: AST.Command.Or, streams: Streams, env: Map<String, String>): Int {
+        println("Entering exeOr with command: $command, streams: $streams, env: $env")
+        val left = exeCommand(command.left, streams, env)
+        if (left != 0) {
+            println("Condition check in exeOr: left != 0")
+            val right = exeCommand(command.right, streams, env)
+            return left * right
         }
+        return left
     }
 
-    private suspend fun exePipeline(pipeline: AST.Command.Pipeline, stream: Stream, env: Map<String, String>) {
+    private suspend fun exePipeline_old2(
+        pipeline: AST.Command.Pipeline,
+        streams: Streams,
+        env: Map<String, String>
+    ): Int {
+        println("Entering exePipeline with pipeline: $pipeline, streams: $streams, env: $env")
+        val streamHolder = mutableListOf<Streams>()
+        val jobs = mutableListOf<ProcessResult>()
+
+        // Proper handling of the first command in the pipeline
+        val firstJob = exeSimpleCommand(pipeline.commands.first(), streams, env)
+        jobs.add(firstJob)
+        streamHolder.add(Streams(inputStream = firstJob.output))
+
+        // Adjust the loop to cover each command sequentially
+        for (index in 1 until pipeline.commands.lastIndex) {
+            println("Entering loop in exePipeline with index: $index")
+            val job = exeSimpleCommand(pipeline.commands[index], streamHolder.last(), env)
+            jobs.add(job)
+            streamHolder.add(Streams(inputStream = job.output))
+        }
+
+        // Handle the last command in the list
+        val lastStreams = streams.copy(inputStream = streamHolder.last().inputStream)
+        val lastJob = exeSimpleCommand(pipeline.commands.last(), lastStreams, env)
+        jobs.add(lastJob)
+
+        // Ensure each process is correctly terminated and its result collected
+        return jobs.map { it.finish() }.last()
+    }
+
+    private suspend fun exePipeline(
+        pipeline: AST.Command.Pipeline,
+        streams: Streams,
+        env: Map<String, String>
+    ): Int {
         if (pipeline.commands.size == 1) {
-            exeSimpleCommand(pipeline.commands.first(), stream, env).finish()
+            return exeSimpleCommand(pipeline.commands.first(), streams, env).finish()
         }
+        // lets assume only two commands for now
+        // I need to buffer the output of the first one
+        println("wtf")
+        val buffer = StringBuffer()
+
+        val firstJob =
+            exeSimpleCommand(pipeline.commands.first(), streams.copy(outputStream = buffer.asOutputStream()), env)
+        firstJob.finish()
+        val secondJob = exeSimpleCommand(pipeline.commands[1], streams.copy(inputStream = bufferStream(buffer)), env)
+        val result = secondJob.finish()
+        return 0
+    }
+
+    fun bufferStream(buffer: StringBuffer): InputStream = object : InputStream() {
+        private var position = 0
+
+        override fun read(): Int {
+            if (position >= buffer.length) {
+                return -1
+            }
+            return buffer[position++].code
+
+        }
+    }
+
+    fun StringBuffer.asOutputStream(): OutputStream = object : OutputStream() {
+        override fun write(b: Int) {
+            append(b.toChar())
+        }
+
     }
 
     private suspend fun exeSimpleCommand(
         command: AST.SimpleCommand,
-        stream: Stream,
-        env: Map<String, String>
+        streams: Streams,
+        env: Map<String, String>,
     ): ProcessResult {
+        println("Entering exeSimpleCommand with command: $command, streams: $streams, env: $env")
         return when (command.name) {
-            is AST.CommandName.Path -> exeExternalProcess(command.name.value, command.arguments, stream, env)
+            is AST.CommandName.Path -> exeExternalProcess(command.name.value, command.arguments, streams, env)
             is AST.CommandName.Word -> {
                 if (internalCommandsContains(command.name.value)) {
-                    exeInternalCommandsContains(command.name.value, command.arguments, stream, env)
+                    exeInternalCommandsContains(command.name.value, command.arguments, streams, env)
                 } else {
-                    exeExternalProcess(command.name.value, command.arguments, stream, env)
+                    exeExternalProcess(command.name.value, command.arguments, streams, env)
                 }
             }
         }
@@ -52,15 +140,15 @@ class Executor {
     private suspend fun exeInternalCommandsContains(
         name: String,
         arguments: List<AST.Argument>,
-        stream: Stream,
+        streams: Streams,
         env: Map<String, String>
     ): ProcessResult {
         TODO()
     }
 
     data class ProcessResult(
-        val finish: () -> Int,
         val output: InputStream,
+        val finish: () -> Int,
     )
 
     private fun internalCommandsContains(name: String): Boolean {
@@ -70,9 +158,10 @@ class Executor {
     private suspend fun exeExternalProcess(
         name: String,
         arguments: List<AST.Argument>,
-        stream: Stream,
+        streams: Streams,
         env: Map<String, String>
-    ): ProcessResult {
+    ): ProcessResult = coroutineScope {
+        println("Entering exeExternalProcess with name: $name, arguments: $arguments, streams: $streams, env: $env")
 
         val resolvedArguments: List<String> = arguments.map { arg ->
             when (arg) {
@@ -82,36 +171,60 @@ class Executor {
             }
         }
         val list = listOf(name) + resolvedArguments
-        println(list)
         val pb = ProcessBuilder(list)
-        if (stream.errorStream != null) {
+        if (streams.errorStream != null) {
             pb.redirectError(ProcessBuilder.Redirect.PIPE)
         } else {
             pb.redirectError(ProcessBuilder.Redirect.INHERIT)
         }
-        if (stream.outputStream != null) {
+        if (streams.outputStream != null) {
             pb.redirectOutput(ProcessBuilder.Redirect.PIPE)
         } else {
             pb.redirectOutput(ProcessBuilder.Redirect.INHERIT)
         }
-        if (stream.inputStream != null) {
+        if (streams.inputStream != null) {
             pb.redirectInput(ProcessBuilder.Redirect.PIPE)
         } else {
             pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
         }
         val process = pb.start()
-        stream.inputStream?.copyToSuspend(process.outputStream)
-        if (stream.outputStream != null) {
-            process.inputStream.copyToSuspend(stream.outputStream)
+        if (streams.inputStream != null) {
+            launch {
+                streams.inputStream.copyToSuspend(process.outputStream)
+                println("closing input stream of $name")
+                process.outputStream.close()
+            }
         }
-        if (stream.errorStream != null) {
-            process.errorStream.copyToSuspend(stream.errorStream)
+        if (streams.outputStream != null) {
+            launch {
+                process.inputStream.copyToSuspend(streams.outputStream)
+                println("closing output stream of $name")
+                process.inputStream.close()
+            }
         }
-        return ProcessResult(output = process.inputStream, finish = process::waitFor)
+        if (streams.errorStream != null) {
+            launch {
+                process.errorStream.copyToSuspend(streams.errorStream)
+                println("closing error stream of $name")
+                process.errorStream.close()
+            }
+        }
+        ProcessResult(output = process.inputStream) {
+            val result = process.waitFor()
+            results.add(result)
+            process.destroy()
+            result
+        }
     }
 
-    suspend fun exeAnd(command: AST.Command.And, stream: Stream, env: Map<String, String>) {
-        val result = exePipeline(command.left)
+    suspend fun exeAnd(command: AST.Command.And, streams: Streams, env: Map<String, String>): Int {
+        println("Entering exeAnd with command: $command, streams: $streams, env: $env")
+        val result: Int = exeCommand(command.left, streams, env)
+        if (result == 0) {
+            println("Condition check in exeAnd: result == 0")
+            return exeCommand(command.right, streams, env)
+        }
+        return result
     }
 }
 
@@ -152,9 +265,12 @@ suspend fun InputStream.copyToSuspend(out: OutputStream, bufferSize: Int = DEFAU
     withContext(Dispatchers.IO) {
         val buffer = ByteArray(bufferSize)
         var bytesRead: Int
-        while (read(buffer).also { bytesRead = it } >= 0) {
+        while (read(buffer).also { bytesRead = it } > 0) {
+            println("copying data in streams")
             out.write(buffer, 0, bytesRead)
             out.flush()
         }
+        println("closing stream in copier")
+        close()
     }
 }

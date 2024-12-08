@@ -1,5 +1,8 @@
 package com.xingpeds.kross.parser
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,8 +25,8 @@ class ExecutorTest {
         )
         val executor = Executor()
         val output = StringBuilder()
-        val streams = Executor.Stream(outputStream = output.asOutputStream())
-        executor.execute(ast, stream = streams)
+        val streams = Executor.Streams(outputStream = output.asOutputStream())
+        executor.execute(ast, streams = streams)
         assertEquals("hello world", output.toString().trim())
     }
 
@@ -44,6 +47,31 @@ class ExecutorTest {
         )
         val executor = Executor()
         executor.execute(ast, env = env)
+    }
+
+    @Test
+    fun and2() = runTest {
+        val ast = AST.Program(
+            listOf(
+
+                AST.Command.And(
+                    left = AST.Command.Pipeline(
+                        listOf(AST.SimpleCommand(AST.CommandName.Word("true")))
+                    ),
+                    right = AST.Command.Pipeline(
+                        listOf(
+                            AST.SimpleCommand(
+                                AST.CommandName.Word("false"),
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        val executor = Executor()
+        val returnCodes = executor.execute(ast)
+        assertEquals(0, returnCodes[0])
+        assertEquals(1, returnCodes[1])
     }
 
     @Test
@@ -68,126 +96,126 @@ class ExecutorTest {
         )
         val executor = Executor()
         val returnCodes = executor.execute(ast)
-//        assertEquals(0, returnCodes[0])
-//        assertEquals(0, returnCodes[1])
-
+        assertEquals(0, returnCodes[0])
+        assertEquals(0, returnCodes[1])
     }
-//
-//    @Test
-//    fun and2() = runTest {
-//        val ast = AST.Program(
-//            AST.Sequence(
-//                listOf(
-//                    AST.And(
-//                        left = AST.SimpleCommand(AST.CommandName.Word("true")),
-//                        right = AST.SimpleCommand(AST.CommandName.Word("false"))
-//                    )
-//                )
-//            )
-//        )
-//        val executor = Executor(ast)
-//        val returnCodes = executor.execute()
-//        assertEquals(0, returnCodes[0])
-//        assertEquals(1, returnCodes[1])
-//    }
-//
-//    @Test
-//    fun and3() = runTest {
-//        val ast = AST.Program(
-//            AST.Sequence(
-//                listOf(
-//                    AST.And(
-//                        left = AST.SimpleCommand(AST.CommandName.Word("false")),
-//                        right = AST.SimpleCommand(AST.CommandName.Word("true"))
-//                    )
-//                )
-//            )
-//        )
-//        val executor = Executor(ast)
-//        val returnCodes = executor.execute()
-//        assertEquals(1, returnCodes.size)
-//        assertEquals(1, returnCodes[0])
-//    }
-//
-//    @Test
-//    fun or1() = runTest {
-//
-//        val ast = AST.Program(
-//            AST.Sequence(
-//                listOf(
-//                    AST.Or(
-//                        left = AST.SimpleCommand(AST.CommandName.Word("true")),
-//                        right = AST.SimpleCommand(AST.CommandName.Word("false"))
-//                    )
-//                )
-//            )
-//        )
-//        val executor = Executor(ast)
-//        val returnCodes = executor.execute()
-//        assertEquals(1, returnCodes.size)
-//        assertEquals(0, returnCodes[0])
-//    }
-//
-//    @Test
-//    fun or2() = runTest {
-//
-//        val ast = AST.Program(
-//            AST.Sequence(
-//                listOf(
-//                    AST.Or(
-//                        left = AST.SimpleCommand(AST.CommandName.Word("false")),
-//                        right = AST.SimpleCommand(AST.CommandName.Word("true"))
-//                    )
-//                )
-//            )
-//        )
-//        val executor = Executor(ast)
-//        val returnCodes = executor.execute()
-//        assertEquals(2, returnCodes.size)
-//        assertEquals(1, returnCodes[0])
-//        assertEquals(0, returnCodes[1])
-//    }
-//
-//    @Test
-//    fun seq1() = runTest {
-//        val ast = AST.Program(
-//            AST.Sequence(
-//                listOf(
-//                    AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.WordArgument("hello"))),
-//                    AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.WordArgument("world")))
-//                )
-//            )
-//        )
-//        val output = StringBuilder()
-//        val streams = Streams(
-//            output = output.asOutputStream(),
-//        )
-//        val executor = Executor(ast, streams = streams)
-//        val returnCodes = executor.execute()
-//        assertEquals("hello\nworld\n", output.toString())
-//    }
-//
-//    @Test
-//    fun pipe1() = runTest {
-//        val ast = AST.Program(
-//            AST.Sequence(
-//                listOf(
-//                    AST.Pipeline(
-//                        listOf(
-//                            AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.WordArgument("hello"))),
-//                            AST.SimpleCommand(AST.CommandName.Word("cat"))
-//                        )
-//                    )
-//                )
-//            )
-//        )
-//        val output = StringBuilder()
-//        val streams = Streams(output = output.asOutputStream())
-//        val executor = Executor(ast, streams = streams)
-//        executor.execute()
-//        assertEquals("hello", output.toString())
-//    }
-//
+
+    @Test
+    fun and3() = runTest {
+        val ast = AST.Program(
+            listOf(
+                AST.Command.And(
+                    left = AST.Command.Pipeline(
+                        listOf(AST.SimpleCommand(AST.CommandName.Word("false")))
+                    ),
+                    right = AST.Command.Pipeline(
+                        listOf(
+                            AST.SimpleCommand(AST.CommandName.Word("true")),
+                        )
+                    )
+                )
+            )
+        )
+
+        val executor = Executor()
+        val returnCodes = executor.execute(ast)
+        assertEquals(1, returnCodes.size)
+        assertEquals(1, returnCodes[0])
+    }
+
+    @Test
+    fun or1() = runTest {
+
+        val ast = AST.Program(
+            listOf(
+                AST.Command.Or(
+                    left = AST.Command.Pipeline(
+                        listOf(AST.SimpleCommand(AST.CommandName.Word("true")))
+                    ),
+                    right = AST.Command.Pipeline(
+                        listOf(AST.SimpleCommand(AST.CommandName.Word("false")))
+                    )
+                )
+            )
+        )
+        val executor = Executor()
+        val returnCodes = executor.execute(ast)
+        assertEquals(1, returnCodes.size)
+        assertEquals(0, returnCodes[0])
+    }
+
+    @Test
+    fun or2() = runTest {
+
+        val ast = AST.Program(
+
+            listOf(
+                AST.Command.Or(
+                    left = AST.Command.Pipeline(
+                        listOf(AST.SimpleCommand(AST.CommandName.Word("false")))
+                    ),
+                    right = AST.Command.Pipeline(
+                        listOf(AST.SimpleCommand(AST.CommandName.Word("true")))
+                    )
+                )
+            )
+        )
+        val executor = Executor()
+        val returnCodes = executor.execute(ast)
+        assertEquals(2, returnCodes.size)
+        assertEquals(1, returnCodes[0])
+        assertEquals(0, returnCodes[1])
+    }
+
+    @Test
+    fun seq1() = runTest {
+        val ast = AST.Program(
+            listOf(
+                AST.Command.Pipeline(
+                    listOf(AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.Argument.WordArgument("hello")))),
+                ),
+                AST.Command.Pipeline(
+                    listOf(AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.Argument.WordArgument("world")))),
+                ),
+
+                )
+        )
+        val output = StringBuilder()
+        val streams = Executor.Streams(
+            outputStream = output.asOutputStream(),
+        )
+        val executor = Executor()
+        executor.execute(ast, streams = streams)
+        assertEquals("hello\nworld\n", output.toString())
+    }
+
+    @Test
+    fun pipe1() = runTest {
+        val ast = AST.Program(
+            commands = listOf(
+                AST.Command.Pipeline(
+                    commands = listOf(
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("echo"),
+                            arguments = listOf(AST.Argument.WordArgument("hello there"))
+                        ),
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("cat")
+                        )
+                    )
+                )
+            )
+        )
+        val output = StringBuilder()
+        val streams = Executor.Streams(outputStream = output.asOutputStream())
+        val executor = Executor()
+        val scope = CoroutineScope(Dispatchers.Default)
+        scope.launch {
+            executor.execute(ast, streams = streams)
+        }.join()
+        assertEquals("hello there", output.toString().trim())
+    }
+
 ////
 ////    @Test
 ////    fun commandsub() {
