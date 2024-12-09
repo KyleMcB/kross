@@ -1,10 +1,9 @@
 package com.xingpeds.kross.parser
 
 import com.xingpeds.kross.parser.Executor.StreamSettings
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -44,6 +43,9 @@ class Executor(private val streamOverrides: Streams = Streams()) {
         for (command in ast.commands) {
             exeCommand(command, StreamContext(streams = streams), env)
         }
+        streams.inputStream?.close()
+        streams.outputStream?.close()
+        streams.errorStream?.close()
         return results
     }
 
@@ -73,8 +75,23 @@ class Executor(private val streamOverrides: Streams = Streams()) {
         env: Map<String, String>
     ): Int = coroutineScope {
         if (pipeline.commands.size == 1) {
+            println("Entering exePipeline with pipeline: $pipeline, sc: $sc, env: $env")
             val process = exeSimpleCommand(pipeline.commands.first(), sc.settings, env)
-            sc.streams.outputStream?.let { process.output?.copyToSuspend(it) }
+            val streamsJobs = mutableListOf<Job>()
+            println("before output copy")
+            streamsJobs.add(launch {
+                sc.streams.outputStream?.let { process.output?.copyToSuspend(it) }
+            })
+            println("after output copy")
+            if (sc.streams.inputStream != null && process.input != null) {
+                streamsJobs.add(launch {
+                    println("before input copy")
+                    sc.streams.inputStream.copyToSuspend(process.input)
+                    println("after input copy")
+                })
+            }
+            streamsJobs.forEach { it.join() }
+            println("before finish")
             process.finish()
         } else {
 
@@ -99,7 +116,9 @@ class Executor(private val streamOverrides: Streams = Streams()) {
                     env = env
                 )
             println("connecting inbetween streams")
-            secondJob.input?.let { firstJob.output?.copyToSuspend(it) }
+            launch {
+                secondJob.input?.let { firstJob.output?.copyToSuspend(it) }
+            }
             println("finished copying")
             firstJob.finish()
             println("finished first job")
@@ -201,6 +220,15 @@ class Executor(private val streamOverrides: Streams = Streams()) {
             val result = process.waitFor()
             results.add(result)
             process.destroy()
+            if (streams.output == ProcessBuilder.Redirect.PIPE) {
+                process.outputStream.close()
+            }
+            if (streams.input == ProcessBuilder.Redirect.PIPE) {
+                process.inputStream.close()
+            }
+            if (streams.error == ProcessBuilder.Redirect.PIPE) {
+                process.errorStream.close()
+            }
             result
         }
     }
@@ -250,7 +278,7 @@ fun StringBuilder.asInputStream(): InputStream = object : InputStream() {
 }
 
 suspend fun InputStream.copyToSuspend(out: OutputStream, bufferSize: Int = DEFAULT_BUFFER_SIZE) {
-    withContext(Dispatchers.IO) {
+    coroutineScope() {
         val buffer = ByteArray(bufferSize)
         var bytesRead: Int
         while (read(buffer).also { bytesRead = it } > 0) {
@@ -261,8 +289,5 @@ suspend fun InputStream.copyToSuspend(out: OutputStream, bufferSize: Int = DEFAU
             out.write(buffer, 0, bytesRead)
             out.flush()
         }
-        println("closing stream in copier")
-        out.close()
-        close()
     }
 }

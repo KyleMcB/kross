@@ -33,6 +33,29 @@ class ExecutorTest {
     }
 
     @Test
+    fun simpleCat() = runTest {
+        val ast = AST.Program(
+            commands = listOf(
+                AST.Command.Pipeline(
+                    listOf(
+                        AST.SimpleCommand(
+                            AST.CommandName.Word("cat"),
+                        )
+                    )
+                )
+            )
+        )
+        val executor = Executor()
+        val output = StringBuilder()
+        val input = "hello world".byteInputStream()
+        val streams = Executor.Streams(inputStream = input, outputStream = output.asOutputStream())
+        CoroutineScope(Dispatchers.Default).launch {
+            executor.execute(ast, streams = streams)
+        }.join()
+        assertEquals("hello world", output.toString().trim())
+    }
+
+    @Test
     fun variableSub() = runTest {
         val env = mapOf("hello" to "world")
         val ast = AST.Program(
