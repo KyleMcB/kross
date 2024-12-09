@@ -74,10 +74,10 @@ class Executor(private val streamOverrides: Streams = Streams()) {
         sc: StreamContext,
         env: Map<String, String>
     ): Int = coroutineScope {
+        val streamsJobs = mutableListOf<Job>()
         if (pipeline.commands.size == 1) {
             println("Entering exePipeline with pipeline: $pipeline, sc: $sc, env: $env")
             val process = exeSimpleCommand(pipeline.commands.first(), sc.settings, env)
-            val streamsJobs = mutableListOf<Job>()
             println("before output copy")
             streamsJobs.add(launch {
                 sc.streams.outputStream?.let { process.output?.copyToSuspend(it) }
@@ -105,9 +105,9 @@ class Executor(private val streamOverrides: Streams = Streams()) {
                 env = env
             )
             println("connecting streams")
-            launch {
+            streamsJobs.add(launch {
                 sc.streams.outputStream?.let { secondJob.output?.copyToSuspend(it) }
-            }
+            })
             println("starting first job")
             val firstJob =
                 exeSimpleCommand(
@@ -116,15 +116,16 @@ class Executor(private val streamOverrides: Streams = Streams()) {
                     env = env
                 )
             println("connecting inbetween streams")
-            launch {
+            streamsJobs.add(launch {
                 secondJob.input?.let { firstJob.output?.copyToSuspend(it) }
-            }
+            })
+            streamsJobs.forEach { it.join() }
             println("finished copying")
             firstJob.finish()
             println("finished first job")
             val result = secondJob.finish()
             println("finished second job")
-            0
+            result
         }
     }
 

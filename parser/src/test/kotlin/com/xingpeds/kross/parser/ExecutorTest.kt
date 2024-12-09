@@ -215,6 +215,36 @@ class ExecutorTest {
     }
 
     @Test
+    fun pipe2() = runTest {
+        val ast = AST.Program(
+            commands = listOf(
+                AST.Command.Pipeline(
+                    commands = listOf(
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("echo"),
+                            arguments = listOf(AST.Argument.WordArgument("hello there"))
+                        ),
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("cat"),
+                        ),
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("cat")
+                        )
+                    )
+                )
+            )
+        )
+        val output = StringBuilder()
+        val streams = Executor.Streams(outputStream = output.asOutputStream())
+        val executor = Executor()
+        val scope = CoroutineScope(Dispatchers.Default)
+        scope.launch {
+            executor.execute(ast, streams = streams)
+        }.join()
+        assertEquals("hello there", output.toString().trim())
+    }
+
+    @Test
     fun pipe1() = runTest {
         val ast = AST.Program(
             commands = listOf(
@@ -241,22 +271,7 @@ class ExecutorTest {
         assertEquals("hello there", output.toString().trim())
     }
 
-////
-////    @Test
-////    fun commandsub() {
-////        val subcommand = AST.Program(listOf(AST.SimpleCommand(name = "which", listOf(AST.WordArgument("fish")))))
-////        val ast = AST.Program(listOf(AST.SimpleCommand(name = "echo", listOf(AST.CommandSubstitution(subcommand)))))
-////        val executor = Executor(ast)
-////        executor.execute()
-////    }
-////
-////    @Test
-////    fun variableSubstitution() {
-////        val env = mapOf("hello" to "world")
-////        val ast = AST.Program(listOf(AST.SimpleCommand(name = "echo", listOf(AST.VariableSubstitution("hello")))))
-////        val executor = Executor(ast, env = env)
-////        executor.execute()
-////    }
+
 ////
 ////    @Test
 ////    fun processbuildertest() {
