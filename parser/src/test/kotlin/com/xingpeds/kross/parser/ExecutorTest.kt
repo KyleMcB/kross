@@ -26,7 +26,9 @@ class ExecutorTest {
         val executor = Executor()
         val output = StringBuilder()
         val streams = Executor.Streams(outputStream = output.asOutputStream())
-        executor.execute(ast, streams = streams)
+        CoroutineScope(Dispatchers.Default).launch {
+            executor.execute(ast, streams = streams)
+        }.join()
         assertEquals("hello world", output.toString().trim())
     }
 
