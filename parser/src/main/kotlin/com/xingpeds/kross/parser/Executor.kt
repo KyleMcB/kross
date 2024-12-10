@@ -81,12 +81,14 @@ class Executor(private val streamOverrides: Streams = Streams()) {
             println("before output copy")
             streamsJobs.add(launch {
                 sc.streams.outputStream?.let { process.output?.copyToSuspend(it) }
+                process.output?.close()
             })
             println("after output copy")
             if (sc.streams.inputStream != null && process.input != null) {
                 streamsJobs.add(launch {
                     println("before input copy")
                     sc.streams.inputStream.copyToSuspend(process.input)
+                    process.input.close()
                     println("after input copy")
                 })
             }
@@ -107,6 +109,7 @@ class Executor(private val streamOverrides: Streams = Streams()) {
             println("connecting streams")
             streamsJobs.add(launch {
                 sc.streams.outputStream?.let { secondJob.output?.copyToSuspend(it) }
+                secondJob.output?.close()
             })
             println("starting first job")
             val firstJob =
@@ -118,6 +121,8 @@ class Executor(private val streamOverrides: Streams = Streams()) {
             println("connecting inbetween streams")
             streamsJobs.add(launch {
                 secondJob.input?.let { firstJob.output?.copyToSuspend(it) }
+                firstJob.output?.close()
+                secondJob.input?.close()
             })
             streamsJobs.forEach { it.join() }
             println("finished copying")
