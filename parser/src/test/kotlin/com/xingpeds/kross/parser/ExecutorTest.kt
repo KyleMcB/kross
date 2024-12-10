@@ -239,7 +239,8 @@ class ExecutorTest {
         val executor = Executor()
         val scope = CoroutineScope(Dispatchers.Default)
         scope.launch {
-            executor.execute(ast, streams = streams)
+            val results = executor.execute(ast, streams = streams)
+            assertEquals(listOf(0, 0, 0), results)
         }.join()
         assertEquals("hello there", output.toString().trim())
     }
