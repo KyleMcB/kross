@@ -4,6 +4,7 @@ import com.xingpeds.kross.parser.Executor.StreamSettings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -85,10 +86,7 @@ class Executor(private val streamOverrides: Streams = Streams()) {
             }
             streamsJobs.forEach { it.join() }
             process.finish()
-        } else {
-
-            // lets assume only two commands for now
-            // I need to buffer the output of the first one
+        } else if (pipeline.commands.size == 2) {
 
             val secondJob = exeSimpleCommand(
                 pipeline.commands[1],
@@ -114,6 +112,82 @@ class Executor(private val streamOverrides: Streams = Streams()) {
             firstJob.finish()
             val result = secondJob.finish()
             result
+        } else {
+            val processList = mutableListOf<ProcessResult>()
+            for ((index, command) in pipeline.commands.withIndex()) {
+                when (index) {
+                    //first element
+                    0 -> {
+                        //start the first job, connect input and error
+                        val streamSettings = sc.settings.copy(output = ProcessBuilder.Redirect.PIPE)
+                        val process = exeSimpleCommand(command, streams = streamSettings, env = env)
+                        streamsJobs.add(launch {
+                            sc.streams.errorStream?.let { process.error?.copyToSuspend(it) }
+                            process.error?.close()
+
+                        })
+                        processList.add(process)
+                        yield()
+                    }
+                    // last process
+                    pipeline.commands.lastIndex -> {
+                        val previous = processList.last()
+                        // start the job
+                        val streamSettings = sc.settings.copy(input = ProcessBuilder.Redirect.PIPE)
+                        val process = exeSimpleCommand(command, streams = streamSettings, env = env)
+                        // connect error stream
+                        coroutineScope {
+                            launch {
+                                sc.streams.errorStream?.let { process.error?.copyToSuspend(it) }
+                                process.error?.close()
+                            }
+                            launch {
+                                process.input?.let { previous.output?.copyToSuspend(it) }
+                                previous.output?.close()
+                                process.input?.close()
+                            }
+                            launch {
+                                sc.streams.outputStream?.let { process.output?.copyToSuspend(it) }
+                                process.output?.close()
+                            }
+                        }
+                        yield()
+                        // wait for previous to finish
+                        previous.finish()
+                        processList.add(process)
+                        // wait for this process to finish and return value
+                    }
+                    // middle element
+                    else -> {
+                        val previous = processList.last()
+
+                        // start the second job
+                        val streamSettings = sc.settings.copy(
+                            input = ProcessBuilder.Redirect.PIPE,
+                            output = ProcessBuilder.Redirect.PIPE
+                        )
+                        val process = exeSimpleCommand(command, streams = streamSettings, env = env)
+                        // connect error stream
+                        coroutineScope {
+                            launch {
+                                sc.streams.errorStream?.let { process.error?.copyToSuspend(it) }
+
+                            }
+                            launch {
+                                process.input?.let { previous.output?.copyToSuspend(it) }
+                                process.input?.close()
+                                previous.output?.close()
+                            }
+                        }
+                        // connect the output of previous to this process input
+                        yield()
+                        processList.add(process)
+                        // wait for previous to finish
+                        previous.finish()
+                    }
+                }
+            }
+            processList.last().finish()
         }
     }
 
@@ -266,7 +340,7 @@ suspend fun InputStream.copyToSuspend(out: OutputStream, bufferSize: Int = DEFAU
     coroutineScope() {
         val buffer = ByteArray(bufferSize)
         var bytesRead: Int
-        while (read(buffer).also { bytesRead = it } > 0) {
+        while (read(buffer).also { bytesRead = it } >= 0) {
             out.write(buffer, 0, bytesRead)
             out.flush()
         }
