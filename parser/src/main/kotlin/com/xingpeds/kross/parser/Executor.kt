@@ -262,7 +262,7 @@ class Executor(private val streamOverrides: Streams = Streams()) {
 
         val resolvedArguments: List<String> = arguments.map { arg ->
             when (arg) {
-                is AST.Argument.CommandSubstitution -> TODO()
+                is AST.Argument.CommandSubstitution -> exeSubCommand(arg, env)
                 is AST.Argument.VariableSubstitution -> env[arg.variableName] ?: ""
                 is AST.Argument.WordArgument -> arg.value
             }
@@ -293,6 +293,19 @@ class Executor(private val streamOverrides: Streams = Streams()) {
             result
         }
     }
+
+    private suspend fun exeSubCommand(arg: AST.Argument.CommandSubstitution, env: Map<String, String>): String {
+        val output = StringBuilder()
+        val executor = Executor()
+        val streams = StreamContext(
+            streams = Streams(
+                outputStream = output.asOutputStream(),
+            )
+        )
+        executor.execute(ast = arg.commandLine, streams = streams.streams, env = env)
+        return output.toString().trim()
+    }
+
 
     suspend fun exeAnd(command: AST.Command.And, streams: StreamContext, env: Map<String, String>): Int {
         val result: Int = exeCommand(command.left, streams, env)
