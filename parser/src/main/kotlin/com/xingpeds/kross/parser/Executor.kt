@@ -3,8 +3,10 @@ package com.xingpeds.kross.parser
 import com.xingpeds.kross.parser.Executor.StreamSettings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -17,7 +19,7 @@ fun settingsFromStreams(streams: Executor.Streams): Executor.StreamSettings {
     )
 }
 
-class Executor(private val streamOverrides: Streams = Streams()) {
+class Executor(private val cwd: StateFlow<File>) {
     private val results = mutableListOf<Int>()
 
     data class StreamContext(
@@ -269,6 +271,7 @@ class Executor(private val streamOverrides: Streams = Streams()) {
         }
         val list = listOf(name) + resolvedArguments
         val pb = ProcessBuilder(list)
+        pb.directory(cwd.value)
         pb.environment().putAll(env)
         pb.redirectInput(streams.input)
         pb.redirectOutput(streams.output)
@@ -297,7 +300,7 @@ class Executor(private val streamOverrides: Streams = Streams()) {
 
     private suspend fun exeSubCommand(arg: AST.Argument.CommandSubstitution, env: Map<String, String>): String {
         val output = StringBuilder()
-        val executor = Executor()
+        val executor = Executor(cwd)
         val streams = StreamContext(
             streams = Streams(
                 outputStream = output.asOutputStream(),

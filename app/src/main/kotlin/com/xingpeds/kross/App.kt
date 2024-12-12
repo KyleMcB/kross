@@ -6,9 +6,40 @@ package com.xingpeds.kross
 import com.xingpeds.kross.parser.Executor
 import com.xingpeds.kross.parser.Lexer
 import com.xingpeds.kross.parser.Parser
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
+
+
+@Serializable
+data class Environment(val variables: Map<String, String>)
+class ShellState(initialDirectory: File = File(System.getProperty("user.dir"))) {
+    private val _currentDirectory = MutableStateFlow(initialDirectory)
+    val currentDirectory: StateFlow<File> = _currentDirectory
+
+    fun changeDirectory(newPath: String): Boolean {
+        val newDir = File(newPath)
+        return if (newDir.exists() && newDir.isDirectory) {
+            _currentDirectory.value = newDir
+            true
+        } else {
+            false
+        }
+    }
+}
 
 fun main() = runBlocking {
+    val environment = Environment(System.getenv())
+    val initCWD = File(System.getProperty("user.dir"))
+    val cwd: MutableStateFlow<File> = MutableStateFlow(initCWD)
+    val env = System.getenv()
+    val json = Json { prettyPrint = true }.encodeToString(env)
+    File("env.json").writeText(json)
+
     generateSequence {
         print("input ")
         readLine()
@@ -22,7 +53,7 @@ fun main() = runBlocking {
                 val lexer = Lexer(it)
                 val parser = Parser()
                 val ast = parser.parse(lexer.tokens())
-                val executor = Executor()
+                val executor = Executor(cwd)
                 executor.execute(ast, env = System.getenv())
             } catch (e: Exception) {
                 println("failed to run command: ${e.message}")

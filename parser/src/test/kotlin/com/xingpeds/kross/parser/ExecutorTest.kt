@@ -2,13 +2,17 @@ package com.xingpeds.kross.parser
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 
 class ExecutorTest {
+    fun executorCwd(): Executor = Executor(MutableStateFlow(File(System.getProperty("user.dir"))))
+
     @Test
     fun simpleEcho() = runTest {
         val ast = AST.Program(
@@ -23,7 +27,7 @@ class ExecutorTest {
                 )
             )
         )
-        val executor = Executor()
+        val executor = executorCwd()
         val output = StringBuilder()
         val streams = Executor.Streams(outputStream = output.asOutputStream())
         CoroutineScope(Dispatchers.Default).launch {
@@ -45,7 +49,7 @@ class ExecutorTest {
                 )
             )
         )
-        val executor = Executor()
+        val executor = executorCwd()
         val output = StringBuilder()
         val input = "hello world".byteInputStream()
         val streams = Executor.Streams(inputStream = input, outputStream = output.asOutputStream())
@@ -70,7 +74,7 @@ class ExecutorTest {
                 )
             )
         )
-        val executor = Executor()
+        val executor = executorCwd()
         executor.execute(ast, env = env)
     }
 
@@ -93,7 +97,7 @@ class ExecutorTest {
                 )
             )
         )
-        val executor = Executor()
+        val executor = executorCwd()
         val returnCodes = executor.execute(ast)
         assertEquals(0, returnCodes[0])
         assertEquals(1, returnCodes[1])
@@ -119,7 +123,7 @@ class ExecutorTest {
                 )
             )
         )
-        val executor = Executor()
+        val executor = executorCwd()
         val returnCodes = executor.execute(ast)
         assertEquals(0, returnCodes[0])
         assertEquals(0, returnCodes[1])
@@ -142,7 +146,7 @@ class ExecutorTest {
             )
         )
 
-        val executor = Executor()
+        val executor = executorCwd()
         val returnCodes = executor.execute(ast)
         assertEquals(1, returnCodes.size)
         assertEquals(1, returnCodes[0])
@@ -163,7 +167,7 @@ class ExecutorTest {
                 )
             )
         )
-        val executor = Executor()
+        val executor = executorCwd()
         val returnCodes = executor.execute(ast)
         assertEquals(1, returnCodes.size)
         assertEquals(0, returnCodes[0])
@@ -185,7 +189,7 @@ class ExecutorTest {
                 )
             )
         )
-        val executor = Executor()
+        val executor = executorCwd()
         val returnCodes = executor.execute(ast)
         assertEquals(2, returnCodes.size)
         assertEquals(1, returnCodes[0])
@@ -209,7 +213,7 @@ class ExecutorTest {
         val streams = Executor.Streams(
             outputStream = output.asOutputStream(),
         )
-        val executor = Executor()
+        val executor = executorCwd()
         executor.execute(ast, streams = streams)
         assertEquals("hello\nworld\n", output.toString())
     }
@@ -236,7 +240,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val streams = Executor.Streams(outputStream = output.asOutputStream())
-        val executor = Executor()
+        val executor = executorCwd()
         val scope = CoroutineScope(Dispatchers.Default)
         scope.launch {
             val results = executor.execute(ast, streams = streams)
@@ -264,7 +268,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val streams = Executor.Streams(outputStream = output.asOutputStream())
-        val executor = Executor()
+        val executor = executorCwd()
         val scope = CoroutineScope(Dispatchers.Default)
         scope.launch {
             executor.execute(ast, streams = streams)
@@ -300,7 +304,7 @@ class ExecutorTest {
                 )
             )
         )
-        val executor = Executor()
+        val executor = executorCwd()
         val output = StringBuilder()
         val streams = Executor.Streams(outputStream = output.asOutputStream())
         CoroutineScope(Dispatchers.Default).launch {
