@@ -6,10 +6,11 @@
  */
 
 plugins {
-    // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
+    // Apply the Kotlin JVM and serialization plugins
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
 
-    // Apply the application plugin to add support for building a CLI application in Java.
+    // Apply the application plugin
     application
 }
 
@@ -22,10 +23,13 @@ dependencies {
     // Use the Kotlin JUnit 5 integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     // Use the JUnit 5 integration.
     testImplementation(libs.junit.jupiter.engine)
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    implementation(project(":parser"))
+    implementation(libs.kotlinx.serialization.json)
 }
 
 // Apply a specific Java toolchain to ease working on different environments.
@@ -37,7 +41,7 @@ java {
 
 application {
     // Define the main class for the application.
-    mainClass = "org.example.AppKt"
+    mainClass = "com.xingpeds.kross.AppKt"
 }
 
 tasks.named<Test>("test") {

@@ -269,6 +269,7 @@ class Executor(private val streamOverrides: Streams = Streams()) {
         }
         val list = listOf(name) + resolvedArguments
         val pb = ProcessBuilder(list)
+        pb.environment().putAll(env)
         pb.redirectInput(streams.input)
         pb.redirectOutput(streams.output)
         pb.redirectError(streams.error)
