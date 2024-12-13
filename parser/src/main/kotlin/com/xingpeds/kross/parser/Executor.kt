@@ -236,9 +236,25 @@ class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String
         streams: StreamSettings,
         env: Map<String, String>
     ): ProcessResult {
-        TODO()
+        val function = builtin[name]
+        val resolvedArguments: List<String> = arguments.map { arg ->
+            when (arg) {
+                is AST.Argument.CommandSubstitution -> exeSubCommand(arg, env)
+                is AST.Argument.VariableSubstitution -> env[arg.variableName] ?: ""
+                is AST.Argument.WordArgument -> arg.value
+            }
+        }
+        if (function != null) {
+            val value = function(resolvedArguments)
+            return ProcessResult() {
+                value
+            }
+        } else {
+            throw CommandNotFound(name)
+        }
     }
 
+    class CommandNotFound(name: String) : Exception("$name not found")
     data class StreamSettings(
         val input: ProcessBuilder.Redirect = ProcessBuilder.Redirect.INHERIT,
         val output: ProcessBuilder.Redirect = ProcessBuilder.Redirect.INHERIT,
@@ -253,7 +269,7 @@ class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String
     )
 
     private fun internalCommandsContains(name: String): Boolean {
-        return false
+        return builtin[name] != null
     }
 
     private suspend fun exeExternalProcess(
