@@ -4,6 +4,7 @@
 package com.xingpeds.kross
 
 import com.xingpeds.kross.parser.Executor
+import com.xingpeds.kross.parser.InternalCommand
 import com.xingpeds.kross.parser.Lexer
 import com.xingpeds.kross.parser.Parser
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,12 +33,26 @@ class ShellState(initialDirectory: File = File(System.getProperty("user.dir"))) 
     }
 }
 
+
 fun main() = runBlocking {
     val environment = Environment(System.getenv())
     val initCWD = File(System.getProperty("user.dir"))
     val cwd: MutableStateFlow<File> = MutableStateFlow(initCWD)
     val env = System.getenv()
     val json = Json { prettyPrint = true }.encodeToString(env)
+    val cd: InternalCommand = { args, streams ->
+        // lets assume we get one arg and that is the path to cd to
+        val arg = args.first()
+        // lets assume its relative for now
+        val new = File(cwd.value, arg)
+        if (new.exists() && new.isDirectory) {
+            cwd.emit(new)
+        }
+        Executor.ProcessResult() {
+
+            0
+        }
+    }
     File("env.json").writeText(json)
 
     generateSequence {

@@ -18,8 +18,9 @@ fun settingsFromStreams(streams: Executor.Streams): Executor.StreamSettings {
         error = if (streams.errorStream != null) ProcessBuilder.Redirect.PIPE else default.error,
     )
 }
+typealias BuiltinCommand = (args: List<String>) -> Int
 
-class Executor(private val cwd: StateFlow<File>) {
+class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String, BuiltinCommand> = emptyMap()) {
     private val results = mutableListOf<Int>()
 
     data class StreamContext(
