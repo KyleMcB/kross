@@ -42,11 +42,18 @@ fun main() = runBlocking {
     val json = Json { prettyPrint = true }.encodeToString(env)
     val cd: BuiltinCommand = { args ->
         // lets assume we get one arg and that is the path to cd to
-        val arg = args.first()
-        // lets assume its relative for now
-        val new = File(cwd.value, arg)
-        if (new.exists() && new.isDirectory) {
-            cwd.emit(new)
+        val arg = args.firstOrNull()
+        if (arg != null) {
+            // lets assume its relative for now
+            val new = File(cwd.value, arg)
+            if (new.exists() && new.isDirectory) {
+                cwd.emit(new)
+            }
+        } else {
+            //cd to home directory
+            val home = File(System.getProperty("user.home"))
+            cwd.emit(home)
+
         }
         0
 
