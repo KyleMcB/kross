@@ -3,43 +3,33 @@
  */
 package com.xingpeds.kross
 
+import com.github.ajalt.mordant.terminal.Terminal
 import com.xingpeds.kross.parser.BuiltinCommand
 import com.xingpeds.kross.parser.Executor
 import com.xingpeds.kross.parser.Lexer
 import com.xingpeds.kross.parser.Parser
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
 
-@Serializable
-data class Environment(val variables: Map<String, String>)
-class ShellState(initialDirectory: File = File(System.getProperty("user.dir"))) {
-    private val _currentDirectory = MutableStateFlow(initialDirectory)
-    val currentDirectory: StateFlow<File> = _currentDirectory
-
-    fun changeDirectory(newPath: String): Boolean {
-        val newDir = File(newPath)
-        return if (newDir.exists() && newDir.isDirectory) {
-            _currentDirectory.value = newDir
-            true
-        } else {
-            false
-        }
-    }
-}
-
-
 fun main() = runBlocking {
-    val environment = Environment(System.getenv())
     val initCWD = File(System.getProperty("user.dir"))
     val cwd: MutableStateFlow<File> = MutableStateFlow(initCWD)
-    val env = System.getenv()
+    val env = mutableMapOf<String, String>()
+    env.putAll(System.getenv())
     val json = Json { prettyPrint = true }.encodeToString(env)
+    val terminal = Terminal()
+    val set: BuiltinCommand = { args ->
+        if (args.size == 2) {
+            env[args[0]] = args[1]
+        } else {
+            throw Exception("expected two arguments.")
+        }
+        0
+    }
     val cd: BuiltinCommand = { args ->
         // lets assume we get one arg and that is the path to cd to
         val arg = args.firstOrNull()
@@ -58,13 +48,14 @@ fun main() = runBlocking {
         0
 
     }
-    val builtinCommands = mapOf("cd" to cd)
+    val builtinCommands = mapOf("cd" to cd, "set" to set)
     File("env.json").writeText(json)
 
     generateSequence {
         print("input ")
-        readLine()
-    }.filterNotNull()
+        terminal.readLineOrNull(false)
+    }
+        .filterNotNull()
         .filter { it.isNotBlank() }
         .takeWhile { it != "exit" }
         .forEach {
@@ -75,7 +66,7 @@ fun main() = runBlocking {
                 val parser = Parser()
                 val ast = parser.parse(lexer.tokens())
                 val executor = Executor(cwd, builtinCommands)
-                executor.execute(ast, env = System.getenv())
+                executor.execute(ast, env = env)
             } catch (e: Exception) {
                 println("failed to run command: ${e.message}")
             }
