@@ -3,8 +3,8 @@
  */
 package com.xingpeds.kross
 
+import com.xingpeds.kross.parser.BuiltinCommand
 import com.xingpeds.kross.parser.Executor
-import com.xingpeds.kross.parser.InternalCommand
 import com.xingpeds.kross.parser.Lexer
 import com.xingpeds.kross.parser.Parser
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,7 +40,7 @@ fun main() = runBlocking {
     val cwd: MutableStateFlow<File> = MutableStateFlow(initCWD)
     val env = System.getenv()
     val json = Json { prettyPrint = true }.encodeToString(env)
-    val cd: InternalCommand = { args, streams ->
+    val cd: BuiltinCommand = { args ->
         // lets assume we get one arg and that is the path to cd to
         val arg = args.first()
         // lets assume its relative for now
@@ -48,11 +48,10 @@ fun main() = runBlocking {
         if (new.exists() && new.isDirectory) {
             cwd.emit(new)
         }
-        Executor.ProcessResult() {
+        0
 
-            0
-        }
     }
+    val builtinCommands = mapOf("cd" to cd)
     File("env.json").writeText(json)
 
     generateSequence {
@@ -68,7 +67,7 @@ fun main() = runBlocking {
                 val lexer = Lexer(it)
                 val parser = Parser()
                 val ast = parser.parse(lexer.tokens())
-                val executor = Executor(cwd)
+                val executor = Executor(cwd, builtinCommands)
                 executor.execute(ast, env = System.getenv())
             } catch (e: Exception) {
                 println("failed to run command: ${e.message}")
