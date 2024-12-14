@@ -218,15 +218,10 @@ class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String
         streams: StreamSettings,
         env: Map<String, String>,
     ): ProcessResult {
-        return when (command.name) {
-            is AST.CommandName.Path -> exeExternalProcess(command.name.value, command.arguments, streams, env)
-            is AST.CommandName.Word -> {
-                if (internalCommandsContains(command.name.value)) {
-                    exeInternalCommandsContains(command.name.value, command.arguments, streams, env)
-                } else {
-                    exeExternalProcess(command.name.value, command.arguments, streams, env)
-                }
-            }
+        return if (internalCommandsContains(command.name.value)) {
+            exeInternalCommandsContains(command.name.value, command.arguments, streams, env)
+        } else {
+            exeExternalProcess(command.name.value, command.arguments, streams, env)
         }
     }
 

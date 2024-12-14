@@ -48,7 +48,6 @@ sealed class AST {
         abstract val value: String
 
         data class Word(override val value: String) : CommandName()
-        data class Path(override val value: String) : CommandName()
     }
 
     /**

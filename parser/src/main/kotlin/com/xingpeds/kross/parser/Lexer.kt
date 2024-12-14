@@ -56,7 +56,6 @@ class Lexer(
             TokenType.Or -> Token.Or
             TokenType.LeftParen -> Token.LeftParen
             TokenType.RightParen -> Token.RightParen
-            TokenType.Path -> Token.Path(text)
             TokenType.Dollar -> Token.Dollar
             TokenType.EOF -> Token.EOF
             TokenType.SingleQuotedString -> Token.SingleQuote(text)

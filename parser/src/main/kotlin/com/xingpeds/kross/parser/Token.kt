@@ -64,8 +64,4 @@ sealed class Token {
 
         override val type = TokenType.EOF
     }
-
-    data class Path(val value: String) : Token() {
-        override val type = TokenType.Path
-    }
 }

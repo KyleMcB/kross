@@ -174,13 +174,12 @@ class Parser {
     }
 
     private fun parseCommandName(): AST.CommandName {
-        val token = eat(TokenType.Word, TokenType.Path)
-        return when (token) {
-            is Token.Word -> AST.CommandName.Word(token.value)
-            is Token.Path -> AST.CommandName.Path(token.value)
-            else -> throw SyntaxError("expected a command name or path and got $token")
-        }
+        val token = eat(TokenType.Word)
+        return if (token is Token.Word) {
+            AST.CommandName.Word(token.value)
+        } else throw SyntaxError("expected a command name or path and got $token")
     }
+
 
     private fun optOperator(): Token.Operator? {
         return if (peek() is Token.Operator) {
