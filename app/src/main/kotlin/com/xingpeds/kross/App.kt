@@ -4,27 +4,28 @@
 package com.xingpeds.kross
 
 import com.github.ajalt.mordant.terminal.Terminal
+import com.xingpeds.kross.luaScripting.Lua
+import com.xingpeds.kross.luaScripting.LuaObject
+import com.xingpeds.kross.luaScripting.executeFile
 import com.xingpeds.kross.parser.BuiltinCommand
 import com.xingpeds.kross.parser.Executor
 import com.xingpeds.kross.parser.Lexer
 import com.xingpeds.kross.parser.Parser
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.xingpeds.kross.state.ShellState
+import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.io.File
 
 
 fun main() = runBlocking {
-    val initCWD = File(System.getProperty("user.dir"))
-    val cwd: MutableStateFlow<File> = MutableStateFlow(initCWD)
-    val env = mutableMapOf<String, String>()
-    env.putAll(System.getenv())
-    val json = Json { prettyPrint = true }.encodeToString(env)
+    val state: ShellState = ShellStateObject
+    val lua: Lua = LuaObject
     val terminal = Terminal()
+    val initFile = initFile()
+    lua.executeFile(initFile)
     val set: BuiltinCommand = { args ->
         if (args.size == 2) {
-            env[args[0]] = args[1]
+            state.setVariable(args[0], args[1])
         } else {
             throw Exception("expected two arguments.")
         }
@@ -35,21 +36,20 @@ fun main() = runBlocking {
         val arg = args.firstOrNull()
         if (arg != null) {
             // lets assume its relative for now
-            val new = File(cwd.value, arg)
+            val new = File(state.currentDirectory.value, arg)
             if (new.exists() && new.isDirectory) {
-                cwd.emit(new)
+                state.changeDirectory(new)
             }
         } else {
             //cd to home directory
             val home = File(System.getProperty("user.home"))
-            cwd.emit(home)
+            state.changeDirectory(home)
 
         }
         0
 
     }
     val builtinCommands = mapOf("cd" to cd, "set" to set)
-    File("env.json").writeText(json)
 
     generateSequence {
         print("input ")
@@ -65,8 +65,8 @@ fun main() = runBlocking {
                 val lexer = Lexer(it)
                 val parser = Parser()
                 val ast = parser.parse(lexer.tokens())
-                val executor = Executor(cwd, builtinCommands)
-                executor.execute(ast, env = env)
+                val executor = Executor(state.currentDirectory, builtinCommands)
+                executor.execute(ast, env = state.environment.value)
             } catch (e: Exception) {
                 println("failed to run command: ${e.message}")
             }

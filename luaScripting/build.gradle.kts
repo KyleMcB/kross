@@ -15,6 +15,7 @@ java {
 dependencies {
     implementation("com.soywiz.korlibs.luak:luak:3.4.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation(project(":shell-state"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation(kotlin("test"))
 
