@@ -13,16 +13,20 @@ java {
     }
 }
 dependencies {
-    implementation("com.soywiz.korlibs.luak:luak:3.4.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-    implementation(project(":shell-state"))
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation(kotlin("test"))
 
     implementation(libs.kotlinx.serialization.json)
 
     // Test engine for your environment
     testImplementation(kotlin("test-junit")) // For JUnit-based test runner/ Use the Kotlin JUnit 5 integration.
+    // testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    //
+    // // Use the JUnit 5 integration.
+    // testImplementation(libs.junit.jupiter.engine)
+    //
+    // testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 tasks.test {
     testLogging {

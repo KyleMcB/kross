@@ -1,27 +1,14 @@
 package com.xingpeds.kross.luaScripting
 
-import org.luaj.vm2.Globals
-import org.luaj.vm2.LoadState
 import org.luaj.vm2.LuaValue
 import org.luaj.vm2.Varargs
-import org.luaj.vm2.compiler.LuaC
-import org.luaj.vm2.lib.*
+import org.luaj.vm2.lib.VarArgFunction
 import kotlin.test.Test
 
-class manual {
+class Manual {
     @Test
     fun hi() {
-        println("hi")
-        val globals = Globals().apply {
-            load(BaseLib())
-            load(PackageLib())
-            load(Bit32Lib())
-            load(TableLib())
-            load(StringLib())
-            load(CoroutineLib())
-            LoadState.install(this)
-            LuaC.install(this)
-        }
+        val globals = LuaObject.globalsPool.acquire()
 
         fun luaprintln(str: String) {
             println("LUA_PRINTLN: $str")
