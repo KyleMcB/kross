@@ -14,3 +14,4 @@ rootProject.name = "kross"
 include("app")
 include("parser")
 include("luaScripting")
+include("shell-state")

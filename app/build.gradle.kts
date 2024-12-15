@@ -29,6 +29,8 @@ dependencies {
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation(project(":parser"))
+    implementation(project(":shell-state"))
+    implementation(project(":luaScripting"))
     implementation(libs.kotlinx.serialization.json)
     implementation("com.github.ajalt.mordant:mordant:3.0.1")
 
