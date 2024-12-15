@@ -9,3 +9,6 @@ build
 /.idea/kotlinc.xml
 /.idea/misc.xml
 /.idea/vcs.xml
+/.idea/modules.xml
+*.iml
+*.hprof
