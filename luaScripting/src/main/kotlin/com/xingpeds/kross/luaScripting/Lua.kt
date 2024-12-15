@@ -29,9 +29,6 @@ fun Lua.executeFile(file: File, input: InputStream? = null, output: OutputStream
 
 object LuaObject : Lua {
 
-    val userFunctionsMap = mutableMapOf<String, LuaFunction>()
-
-
     val registerFunction = object : TwoArgFunction() {
         override fun call(nameArg: LuaValue, funcArg: LuaValue): LuaValue {
             val name = nameArg.checkjstring() ?: throw Exception("function name not supplied")// Get string from nameArg
