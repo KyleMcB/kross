@@ -1,16 +1,21 @@
 package com.xingpeds.kross.luaScripting
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import org.luaj.vm2.Globals
 import org.luaj.vm2.LoadState
+import org.luaj.vm2.LuaFunction
+import org.luaj.vm2.LuaValue
 import org.luaj.vm2.compiler.LuaC
 import org.luaj.vm2.io.LuaBinInput
 import org.luaj.vm2.io.LuaWriter
 import org.luaj.vm2.lib.*
 import java.io.*
-import java.util.concurrent.ArrayBlockingQueue
 
 interface Lua {
     fun executeLua(code: String, input: InputStream? = null, output: OutputStream? = null, error: OutputStream? = null)
+    val userFunctions: StateFlow<Map<String, LuaFunction>>
 }
 
 fun Lua.executeFile(file: File, input: InputStream? = null, output: OutputStream? = null, error: OutputStream? = null) {
@@ -19,64 +24,62 @@ fun Lua.executeFile(file: File, input: InputStream? = null, output: OutputStream
     this.executeLua(codeAsText, input, output, error)
 }
 
-class GlobalsPool(size: Int) {
-    private val pool = ArrayBlockingQueue<Globals>(size)
 
-    init {
-        repeat(size) {
-            pool.add(createGlobals())
+object LuaEngine : Lua {
+
+    val registerFunction = object : TwoArgFunction() {
+        override fun call(nameArg: LuaValue, funcArg: LuaValue): LuaValue {
+            val name = nameArg.checkjstring() ?: throw Exception("function name not supplied")// Get string from nameArg
+            val function = funcArg.checkfunction()
+                ?: throw Exception("lua function not supplied") // Ensure funcArg is a LuaFunction
+            _userFunctions.update {
+                it.toMutableMap().apply { this[name] = function }
+            }
+            return LuaValue.NIL // maybe I should return the function?
         }
+
     }
 
-    private fun createGlobals(): Globals {
-        return Globals().apply {
-            load(BaseLib())
-            load(PackageLib())
-            load(Bit32Lib())
-            load(TableLib())
-            load(StringLib())
-            load(CoroutineLib())
-            LoadState.install(this)
-            LuaC.install(this)
-        }
+    val global = Globals().apply {
+        load(BaseLib())
+        load(PackageLib())
+        load(Bit32Lib())
+        load(TableLib())
+        load(StringLib())
+        load(CoroutineLib())
+        LoadState.install(this)
+        LuaC.install(this)
+        val krossTable = LuaValue.tableOf()          // Create the `kross` table
+        val apiTable = LuaValue.tableOf()            // Create the `api` table
+        apiTable["register"] = registerFunction      // Add `registerFunction` to `api` table
+        krossTable["api"] = apiTable                 // Add the `api` table to `kross` table
+        this["kross"] = krossTable                   // Add the `kross` table to Globals
     }
-
-    fun acquire(): Globals {
-        return pool.take()
-    }
-
-    fun release(globals: Globals) {
-        pool.put(globals)
-    }
-}
-
-object LuaObject : Lua {
-
-    val globalsPool = GlobalsPool(3) // Adjust pool size as needed
 
     override fun executeLua(code: String, input: InputStream?, output: OutputStream?, error: OutputStream?) {
-        val globals = globalsPool.acquire()
 
-        val originalStdout = globals.STDOUT
-        val originalStdin = globals.STDIN
-        val originalStderr = globals.STDERR
+        val originalStdout = global.STDOUT
+        val originalStdin = global.STDIN
+        val originalStderr = global.STDERR
 
         try {
             // Override streams if provided
-            if (output != null) globals.STDOUT = outputAdapter(output)
-            if (input != null) globals.STDIN = inputAdapter(input)
-            if (error != null) globals.STDERR = outputAdapter(error)
+            if (output != null) global.STDOUT = outputAdapter(output)
+            if (input != null) global.STDIN = inputAdapter(input)
+            if (error != null) global.STDERR = outputAdapter(error)
 
-            globals.load(code).call()
+            global.load(code).call()
         } finally {
             // Restore original streams
-            globals.STDOUT = originalStdout
-            globals.STDIN = originalStdin
-            globals.STDERR = originalStderr
-
-            globalsPool.release(globals)
+            global.STDOUT = originalStdout
+            global.STDIN = originalStdin
+            global.STDERR = originalStderr
         }
     }
+
+    val _userFunctions = MutableStateFlow<Map<String, LuaFunction>>(emptyMap())
+    override val userFunctions: StateFlow<Map<String, LuaFunction>>
+        get() = _userFunctions
 }
 
 fun outputAdapter(output: OutputStream): LuaWriter = object : LuaWriter() {
