@@ -13,8 +13,6 @@ import org.luaj.vm2.io.LuaWriter
 import org.luaj.vm2.lib.*
 import java.io.*
 
-// I need to add a lua function that publishes functions to kotlin
-// so I need a DS to hold user created functions
 interface Lua {
     fun executeLua(code: String, input: InputStream? = null, output: OutputStream? = null, error: OutputStream? = null)
     val userFunctions: StateFlow<Map<String, LuaFunction>>
