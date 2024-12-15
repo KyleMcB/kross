@@ -8,7 +8,7 @@ import kotlin.test.Test
 class Manual {
     @Test
     fun hi() {
-        val globals = LuaObject.globalsPool.acquire()
+        val globals = LuaEngine.globalsPool.acquire()
 
         fun luaprintln(str: String) {
             println("LUA_PRINTLN: $str")

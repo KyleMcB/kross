@@ -5,7 +5,7 @@ package com.xingpeds.kross
 
 import com.github.ajalt.mordant.terminal.Terminal
 import com.xingpeds.kross.luaScripting.Lua
-import com.xingpeds.kross.luaScripting.LuaObject
+import com.xingpeds.kross.luaScripting.LuaEngine
 import com.xingpeds.kross.luaScripting.executeFile
 import com.xingpeds.kross.parser.BuiltinCommand
 import com.xingpeds.kross.parser.Executor
@@ -19,7 +19,7 @@ import java.io.File
 
 fun main() = runBlocking {
     val state: ShellState = ShellStateObject
-    val lua: Lua = LuaObject
+    val lua: Lua = LuaEngine
     val terminal = Terminal()
     val initFile = initFile()
     lua.executeFile(initFile)

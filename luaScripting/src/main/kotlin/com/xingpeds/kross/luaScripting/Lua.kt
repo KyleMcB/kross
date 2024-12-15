@@ -25,7 +25,7 @@ fun Lua.executeFile(file: File, input: InputStream? = null, output: OutputStream
 }
 
 
-object LuaObject : Lua {
+object LuaEngine : Lua {
 
     val registerFunction = object : TwoArgFunction() {
         override fun call(nameArg: LuaValue, funcArg: LuaValue): LuaValue {
