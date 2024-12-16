@@ -4,9 +4,9 @@ import java.io.InputStream
 import java.io.OutputStream
 
 data class ExecutableResult(
-    val output: OutputStream?,
-    val input: InputStream?,
-    val error: InputStream?,
+    val output: OutputStream? = null,
+    val input: InputStream? = null,
+    val error: InputStream? = null,
     val waitFor: suspend () -> Int
 )
 
@@ -48,6 +48,7 @@ class JavaOSProcess : Executable {
             Executable.StreamSetting.Inherit -> pb.redirectError(ProcessBuilder.Redirect.INHERIT)
         }
         val process = pb.start()
+        val thing = process.outputStream
         return ExecutableResult(
             output = if (output == Executable.StreamSetting.Pipe) process.outputStream else null,
             input = if (input == Executable.StreamSetting.Pipe) process.inputStream else null,
