@@ -2,86 +2,68 @@ package com.xingpeds.kross.executableLua
 
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.ExecutableResult
-import com.xingpeds.kross.executable.asOutputStream
+import com.xingpeds.kross.executable.Pipes
 import com.xingpeds.kross.luaScripting.LuaEngine
-import org.luaj.vm2.io.LuaBinInput
-import org.luaj.vm2.io.LuaWriter
-import java.io.InputStream
-import java.io.OutputStream
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import org.luaj.vm2.LuaFunction
+import org.luaj.vm2.LuaValue
 
 class LuaExecutable : Executable {
-    override suspend fun invoke(
-        name: String,
-        args: List<String>,
-        input: Executable.StreamSetting,
-        output: Executable.StreamSetting,
-        error: Executable.StreamSetting
-    ): ExecutableResult {
+    override suspend fun invoke(name: String, args: List<String>, pipes: Pipes): ExecutableResult = coroutineScope {
+        println("Entering invoke method with function name: $name and arguments: $args")
         val global = LuaEngine.global
-        // I need to construct something that I can install in global.STDIN and set as the output stream
-        // Lua programs to execute
-        val program = "print('hello world!')"
-        val catProgram = """
-        for line in io.lines() do
-            print(line)
-        end
-        """
-        val output = StringBuilder()
-        global.STDOUT = adapter(output.asOutputStream())
+        val programInput = pipes.programInput?.luaBinReader()
+        val programOutput = pipes.programOutput?.luaWriter()
+        val programError = pipes.programError?.luaWriter()
 
-        return ExecutableResult(
-            output = output.asOutputStream(),
-        ) {
-            // Execute the appropriate Lua program
-            global.load(if (name == "cat") catProgram else program).call()
-            0
+        val originalOutput = global.STDOUT
+        val originalInput = global.STDIN
+        val originalError = global.STDERR
+        println("Captured original global streams (STDOUT, STDIN, STDERR)")
+        programOutput?.let {
+            launch {
+                println("about to redirect STDOUT")
+                global.STDOUT = it
+                println("Redirected STDOUT")
+            }
         }
-    }
-}
-
-class LuaInputStream {
-    fun setInput(input: InputStream) {
-        input.use {}
-    }
-
-    fun getInput(): LuaBinInput = object : LuaBinInput() {
-        override fun read(): Int {
-            TODO("Not yet implemented")
+        launch {
+            programInput?.let {
+                global.STDIN = it
+                println("Changed global.STDIN to programInput")
+            }
+        }
+        launch {
+            programError?.let {
+                global.STDERR = it
+                println("Changed global.STDERR to programError")
+            }
         }
 
-    }
+        val userFunction: LuaFunction = global[name].checkfunction() ?: throw Exception("$name not found")
+        println("Found user function: $name in the global scope")
 
-}
+        val luaArgs = LuaValue.listOf(args.map { LuaValue.valueOf(it) }.toTypedArray())
+        println("Prepared Lua arguments: $luaArgs")
 
-fun adapter2(output: OutputStream): LuaBinInput = object : LuaBinInput() {
-    override fun read(): Int {
-        TODO("Not yet implemented")
-    }
+        return@coroutineScope {
+            println("Invoking Lua function: $name with args: $luaArgs")
+            val luaval = userFunction.call(luaArgs)
+            println("Lua function returned value: $luaval")
 
-}
+            programOutput?.close()
+            programInput?.close()
+            programError?.close()
+            global.STDOUT = originalOutput
+            global.STDIN = originalInput
+            global.STDERR = originalError
+            println("Restored original global streams (STDOUT, STDIN, STDERR)")
 
-fun adapter(output: OutputStream): LuaWriter = object : LuaWriter() {
-    override fun print(v: String) {
-        output.write(v.encodeToByteArray())
-    }
 
-    override fun write(value: Int) {
-        output.write(value)
-    }
-}
-
-fun adapter(input: InputStream): LuaBinInput = object : LuaBinInput() {
-    override fun read(): Int = input.read()
-
-}
-
-fun adapter(luaIn: LuaBinInput): InputStream = object : InputStream() {
-    override fun read(): Int =
-        luaIn.read()
-}
-
-fun adapter(luaOut: LuaWriter): OutputStream = object : OutputStream() {
-    override fun write(b: Int) {
-        luaOut.write(b)
+            val result = luaval.toint()
+            println("Returning result: $result")
+            result
+        }
     }
 }
