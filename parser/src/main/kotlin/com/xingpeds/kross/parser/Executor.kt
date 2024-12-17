@@ -1,5 +1,6 @@
 package com.xingpeds.kross.parser
 
+import com.xingpeds.kross.executable.copyToSuspend
 import com.xingpeds.kross.parser.Executor.StreamSettings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -362,16 +363,5 @@ fun StringBuilder.asInputStream(): InputStream = object : InputStream() {
             b[off + i] = this@asInputStream[position++].code.toByte()
         }
         return bytesToRead
-    }
-}
-
-suspend fun InputStream.copyToSuspend(out: OutputStream, bufferSize: Int = DEFAULT_BUFFER_SIZE) {
-    coroutineScope() {
-        val buffer = ByteArray(bufferSize)
-        var bytesRead: Int
-        while (read(buffer).also { bytesRead = it } >= 0) {
-            out.write(buffer, 0, bytesRead)
-            out.flush()
-        }
     }
 }

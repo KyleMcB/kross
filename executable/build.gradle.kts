@@ -17,6 +17,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation(kotlin("test"))
 
+    implementation("com.soywiz.korlibs.luak:luak:3.4.0")
     implementation(libs.kotlinx.serialization.json)
 
     // Test engine for your environment
