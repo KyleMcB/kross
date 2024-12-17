@@ -1,6 +1,5 @@
 package com.xingpeds.kross.parser
 
-import com.xingpeds.kross.executable.copyToSuspend
 import com.xingpeds.kross.parser.Executor.StreamSettings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -79,12 +78,12 @@ class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String
         if (pipeline.commands.size == 1) {
             val process = exeSimpleCommand(pipeline.commands.first(), sc.settings, env)
             streamsJobs.add(launch {
-                sc.streams.outputStream?.let { process.output?.copyToSuspend(it) }
+                sc.streams.outputStream?.let { process.output?.copyTo(it) }
                 process.output?.close()
             })
             if (sc.streams.inputStream != null && process.input != null) {
                 streamsJobs.add(launch {
-                    sc.streams.inputStream.copyToSuspend(process.input)
+                    sc.streams.inputStream.copyTo(process.input)
                     process.input.close()
                 })
             }
@@ -98,7 +97,7 @@ class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String
                 env = env
             )
             streamsJobs.add(launch {
-                sc.streams.outputStream?.let { secondJob.output?.copyToSuspend(it) }
+                sc.streams.outputStream?.let { secondJob.output?.copyTo(it) }
                 secondJob.output?.close()
             })
             val firstJob =
@@ -108,7 +107,7 @@ class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String
                     env = env
                 )
             streamsJobs.add(launch {
-                secondJob.input?.let { firstJob.output?.copyToSuspend(it) }
+                secondJob.input?.let { firstJob.output?.copyTo(it) }
                 firstJob.output?.close()
                 secondJob.input?.close()
             })
@@ -126,7 +125,7 @@ class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String
                         val streamSettings = sc.settings.copy(output = ProcessBuilder.Redirect.PIPE)
                         val process = exeSimpleCommand(command, streams = streamSettings, env = env)
                         streamsJobs.add(launch {
-                            sc.streams.errorStream?.let { process.error?.copyToSuspend(it) }
+                            sc.streams.errorStream?.let { process.error?.copyTo(it) }
                             process.error?.close()
 
                         })
@@ -142,16 +141,16 @@ class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String
                         // connect error stream
                         coroutineScope {
                             launch {
-                                sc.streams.errorStream?.let { process.error?.copyToSuspend(it) }
+                                sc.streams.errorStream?.let { process.error?.copyTo(it) }
                                 process.error?.close()
                             }
                             launch {
-                                process.input?.let { previous.output?.copyToSuspend(it) }
+                                process.input?.let { previous.output?.copyTo(it) }
                                 previous.output?.close()
                                 process.input?.close()
                             }
                             launch {
-                                sc.streams.outputStream?.let { process.output?.copyToSuspend(it) }
+                                sc.streams.outputStream?.let { process.output?.copyTo(it) }
                                 process.output?.close()
                             }
                         }
@@ -174,11 +173,11 @@ class Executor(private val cwd: StateFlow<File>, private val builtin: Map<String
                         // connect error stream
                         coroutineScope {
                             launch {
-                                sc.streams.errorStream?.let { process.error?.copyToSuspend(it) }
+                                sc.streams.errorStream?.let { process.error?.copyTo(it) }
 
                             }
                             launch {
-                                process.input?.let { previous.output?.copyToSuspend(it) }
+                                process.input?.let { previous.output?.copyTo(it) }
                                 process.input?.close()
                                 previous.output?.close()
                             }

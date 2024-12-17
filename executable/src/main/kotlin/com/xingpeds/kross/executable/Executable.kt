@@ -1,6 +1,5 @@
 package com.xingpeds.kross.executable
 
-import kotlinx.coroutines.coroutineScope
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -62,18 +61,6 @@ class JavaOSProcess : Executable {
         }
     }
 
-}
-
-suspend fun InputStream.copyToSuspend(out: OutputStream, bufferSize: Int = DEFAULT_BUFFER_SIZE) {
-    coroutineScope() {
-        val buffer = ByteArray(bufferSize)
-        var bytesRead: Int
-        while (read(buffer).also { bytesRead = it } >= 0) {
-            println(buffer.contentToString())
-            out.write(buffer, 0, bytesRead)
-            out.flush()
-        }
-    }
 }
 
 fun StringBuilder.asOutputStream(): java.io.OutputStream {
