@@ -15,12 +15,11 @@ java {
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
-    implementation(project(":shell-state"))
     testImplementation(kotlin("test"))
-    implementation(project(":executable"))
 
+    implementation("com.soywiz.korlibs.luak:luak:3.4.0")
     implementation(libs.kotlinx.serialization.json)
-
+// TODO clean up
     // Test engine for your environment
     testImplementation(kotlin("test-junit")) // For JUnit-based test runner/ Use the Kotlin JUnit 5 integration.
     // testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
