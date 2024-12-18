@@ -2,7 +2,6 @@ package com.xingpeds.kross.luaScripting
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -42,13 +41,7 @@ suspend fun Lua.executeFile(
 object LuaEngine : Lua {
     val _userFunctions = MutableStateFlow<Map<String, LuaFunction>>(emptyMap())
     val userTable = LuaValue.tableOf()
-    val sillyfunc = object : OneArgFunction() {
-        override fun call(arg: LuaValue): LuaValue {
-            println(arg.tojstring())
-            return NIL
-        }
 
-    }
     val registerFunction = object : TwoArgFunction() {
         override fun call(nameArg: LuaValue, funcArg: LuaValue): LuaValue {
             val name = nameArg.checkjstring() ?: throw Exception("function name not supplied")// Get string from nameArg
@@ -60,15 +53,6 @@ object LuaEngine : Lua {
             return LuaValue.NIL // maybe I should return the function?
         }
 
-    }
-
-    var initJob: Job? = null
-
-    init {
-        initJob = CoroutineScope(Dispatchers.Default).launch {
-
-            registerFunction(LuaValue.valueOf("apples"), sillyfunc)
-        }
     }
 
     val apiTable = LuaValue.tableOf().apply {
@@ -95,7 +79,6 @@ object LuaEngine : Lua {
             _userFunctions.collect { userFuncMap ->
 
                 userFuncMap.forEach { (name, func) ->
-                    println("$name is registered")
                     userTable[name] = func
                     global["func"] = userTable
                 }

@@ -3,6 +3,8 @@ package com.xingpeds.kross.executableLua
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.ExecutableResult
 import com.xingpeds.kross.executable.Pipes
+import org.luaj.vm2.LuaString
+import org.luaj.vm2.LuaValue
 import org.luaj.vm2.Varargs
 
 class LuaExecutable : Executable {
@@ -19,14 +21,17 @@ class LuaExecutable : Executable {
             val function = lua["func"][name].checkfunction() ?: throw Exception("could not find lua function $name")
             return {
 // I have something thinking to do about how to invoke the lua function
-                val funcReturn: Varargs = function.call()
-//                    Vfunction.invoke(
-//                    LuaValue.listOf(
-//                        args.map {
-//                            LuaString.valueOf(it)
-//                        }.toTypedArray()
-//                    )
-//                )
+                val funcReturn: Varargs =
+                    function.invoke(
+                        LuaValue.listOf(
+                            args.map {
+                                LuaString.valueOf(it)
+                            }.toTypedArray()
+                        ),
+                        LuaValue.tableOf(namedValues = env.flatMap { (key, value) ->
+                            listOf(LuaString.valueOf(key), LuaString.valueOf(value))
+                        }.toTypedArray())
+                    )
                 funcReturn.toint(1)
             }
         } else throw Exception("could not find lua function $name")
