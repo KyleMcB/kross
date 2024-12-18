@@ -6,10 +6,11 @@ import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.runBlocking
 import org.luaj.vm2.io.LuaBinInput
 import org.luaj.vm2.io.LuaWriter
+import java.io.Closeable
 import java.io.InputStream
 import java.io.OutputStream
 
-interface IPipe {
+interface IPipe : Closeable {
     fun luaBinReader(): LuaBinInput
     fun connectTo(input: InputStream)
     fun connectTo(output: OutputStream)
@@ -59,11 +60,15 @@ class ClosedPiped() : IPipe {
         }
     }
 
+    override fun close() {
+
+    }
+
 }
 
 class Pipe(
     private val channel: Channel<Int> = Channel(16, onUndeliveredElement = { println("Undelivered element: $it") }),
-) : IPipe {
+) : IPipe, Closeable {
 
     private var _inputStream: InputStream? = null
     private var _outputStream: OutputStream? = null
@@ -105,8 +110,6 @@ class Pipe(
                 channel.send(byte)
             }
         }
-        channel.close()
-        Unit
     }
 
     override fun connectTo(output: OutputStream) = runBlocking {
@@ -198,5 +201,13 @@ class Pipe(
             this._outputStream = output
             output
         }
+    }
+
+    override fun close() {
+        channel.close()
+        _inputStream?.close()
+        _outputStream?.close()
+        _luaWriter?.close()
+        _luaBinInput?.close()
     }
 }

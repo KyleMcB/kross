@@ -36,6 +36,9 @@ class Executor(
         for (command in ast.commands) {
             exeCommand(command)
         }
+        pipes.programInput?.close()
+        pipes.programOutput?.close()
+        pipes.programError?.close()
         return results
     }
 
@@ -60,15 +63,37 @@ class Executor(
         pipeline: AST.Command.Pipeline,
     ): Int = coroutineScope {
 
-        val commands = mutableListOf<ExecutableResult>()
+        val commands = pipeline.commands
         if (pipeline.commands.size == 1) {
             val command = pipeline.commands.first()
-            commands.add(
-                exeExternalProcess(name = command.name.value, arguments = command.arguments, pipes = pipes)
-            )
+            return@coroutineScope exeExternalProcess(
+                name = command.name.value,
+                arguments = command.arguments,
+                pipes = pipes
+            )().also { results.add(it) }
+        } else if (commands.size == 2) {
+            val first = commands.first()
+            val second = commands.last()
+            val pipe = Pipe()
+            val firstPipes = this@Executor.pipes.copy(programOutput = pipe)
+            val secondPipes = this@Executor.pipes.copy(programInput = pipe)
+            exeExternalProcess(
+                name = first.name.value,
+                arguments = first.arguments,
+                pipes = firstPipes
+            )().also { results.add(it) }
+            pipe.close()
+            exeExternalProcess(
+                name = second.name.value,
+                arguments = second.arguments,
+                pipes = secondPipes
+            )().also { results.add(it) }
+        } else {
+            //handle size of n pipeline
+
+            0
         }
 
-        commands.map { it() }.last()
     }
 
     private suspend fun exeSimpleCommand(
@@ -85,7 +110,6 @@ class Executor(
         arguments: List<AST.Argument>,
         pipes: Pipes,
     ): ExecutableResult = coroutineScope {
-        println("exeExternalProcess")
         val env = shellState.environment.value
         val resolvedArguments: List<String> = arguments.map { arg ->
             when (arg) {
@@ -94,7 +118,6 @@ class Executor(
                 is AST.Argument.WordArgument -> arg.value
             }
         }
-        println("revolved arguments: $resolvedArguments")
         val executable = makeExecutable(name)
         val finish = executable(name, resolvedArguments, pipes = pipes, env = env)
         finish

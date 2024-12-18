@@ -71,6 +71,7 @@ class JavaOSProcess : Executable {
                     println("Connecting program input to process output stream")
                     pipes.programInput.connectTo(process.outputStream)
                     println("Program input connected")
+                    process.outputStream.close()
                 }
             }
             launch {
@@ -78,6 +79,7 @@ class JavaOSProcess : Executable {
                     println("Connecting program output to process input stream")
                     pipes.programOutput.connectTo(process.inputStream)
                     println("Program output connected")
+                    process.inputStream.close()
                 }
             }
             launch {
@@ -85,6 +87,7 @@ class JavaOSProcess : Executable {
                     println("Connecting program error to process error stream")
                     pipes.programError.connectTo(process.errorStream)
                     println("Program error connected")
+                    process.errorStream.close()
                 }
             }
         }
