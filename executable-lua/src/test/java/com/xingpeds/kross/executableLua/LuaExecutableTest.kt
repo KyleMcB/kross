@@ -3,6 +3,7 @@ package com.xingpeds.kross.executableLua
 import com.xingpeds.kross.executable.Pipe
 import com.xingpeds.kross.executable.Pipes
 import com.xingpeds.kross.executable.asOutputStream
+import com.xingpeds.kross.luaScripting.LuaEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -13,8 +14,9 @@ class LuaExecutableTest {
 
     @Test
     fun one() = runTest {
+        LuaEngine.initJob?.join()
         val subject = LuaExecutable()
-        subject.invoke("print", listOf("hello"))()
+        subject("apples", listOf("hellergbo"), pipes = Pipes(), env = emptyMap())()
     }
 
     @Test
@@ -35,7 +37,7 @@ class LuaExecutableTest {
                 pipes.programInput?.connectTo(input.asOutputStream())
             }
             launch {
-                subject.invoke("print", listOf("hello"), pipes = pipes)()
+                subject.invoke("print", listOf("hello"), pipes = pipes, env = emptyMap())()
             }
         }.join()
         println("output is: $output")

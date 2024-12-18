@@ -1,8 +1,11 @@
 package com.xingpeds.kross.luaScripting
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import org.luaj.vm2.Globals
 import org.luaj.vm2.LoadState
 import org.luaj.vm2.LuaFunction
@@ -14,11 +17,22 @@ import org.luaj.vm2.lib.*
 import java.io.*
 
 interface Lua {
-    fun executeLua(code: String, input: InputStream? = null, output: OutputStream? = null, error: OutputStream? = null)
-    val userFunctions: StateFlow<Map<String, LuaFunction>>
+    suspend fun executeLua(
+        code: String,
+        input: InputStream? = null,
+        output: OutputStream? = null,
+        error: OutputStream? = null
+    )
+
+    suspend fun userFuncExists(name: String): Boolean
 }
 
-fun Lua.executeFile(file: File, input: InputStream? = null, output: OutputStream? = null, error: OutputStream? = null) {
+suspend fun Lua.executeFile(
+    file: File,
+    input: InputStream? = null,
+    output: OutputStream? = null,
+    error: OutputStream? = null
+) {
     require(file.exists()) { "File does not exist: $file" }
     val codeAsText: String = file.readText()
     this.executeLua(codeAsText, input, output, error)
@@ -26,7 +40,15 @@ fun Lua.executeFile(file: File, input: InputStream? = null, output: OutputStream
 
 
 object LuaEngine : Lua {
+    val _userFunctions = MutableStateFlow<Map<String, LuaFunction>>(emptyMap())
+    val userTable = LuaValue.tableOf()
+    val sillyfunc = object : OneArgFunction() {
+        override fun call(arg: LuaValue): LuaValue {
+            println(arg.tojstring())
+            return NIL
+        }
 
+    }
     val registerFunction = object : TwoArgFunction() {
         override fun call(nameArg: LuaValue, funcArg: LuaValue): LuaValue {
             val name = nameArg.checkjstring() ?: throw Exception("function name not supplied")// Get string from nameArg
@@ -40,6 +62,21 @@ object LuaEngine : Lua {
 
     }
 
+    var initJob: Job? = null
+
+    init {
+        initJob = CoroutineScope(Dispatchers.Default).launch {
+
+            registerFunction(LuaValue.valueOf("apples"), sillyfunc)
+        }
+    }
+
+    val apiTable = LuaValue.tableOf().apply {
+        this["register"] = registerFunction
+    }            // Create the `api` table
+    val krossTable = LuaValue.tableOf().apply {
+        this["api"] = apiTable
+    }          // Create the `kross` table
     val global = Globals().apply {
         load(BaseLib())
         load(PackageLib())
@@ -49,14 +86,24 @@ object LuaEngine : Lua {
         load(CoroutineLib())
         LoadState.install(this)
         LuaC.install(this)
-        val krossTable = LuaValue.tableOf()          // Create the `kross` table
-        val apiTable = LuaValue.tableOf()            // Create the `api` table
-        apiTable["register"] = registerFunction      // Add `registerFunction` to `api` table
-        krossTable["api"] = apiTable                 // Add the `api` table to `kross` table
         this["kross"] = krossTable                   // Add the `kross` table to Globals
+        this["func"] = userTable
     }
 
-    override fun executeLua(code: String, input: InputStream?, output: OutputStream?, error: OutputStream?) {
+    init {
+        CoroutineScope(Dispatchers.Default).launch {
+            _userFunctions.collect { userFuncMap ->
+
+                userFuncMap.forEach { (name, func) ->
+                    println("$name is registered")
+                    userTable[name] = func
+                    global["func"] = userTable
+                }
+            }
+        }
+    }
+
+    override suspend fun executeLua(code: String, input: InputStream?, output: OutputStream?, error: OutputStream?) {
 
         val originalStdout = global.STDOUT
         val originalStdin = global.STDIN
@@ -77,9 +124,12 @@ object LuaEngine : Lua {
         }
     }
 
-    val _userFunctions = MutableStateFlow<Map<String, LuaFunction>>(emptyMap())
-    override val userFunctions: StateFlow<Map<String, LuaFunction>>
-        get() = _userFunctions
+    override suspend fun userFuncExists(name: String): Boolean {
+        val containsKey = _userFunctions.value.containsKey(name)
+        return containsKey
+    }
+
+
 }
 
 fun outputAdapter(output: OutputStream): LuaWriter = object : LuaWriter() {
@@ -102,3 +152,27 @@ fun inputAdapter(input: InputStream): LuaBinInput = object : LuaBinInput() {
 
     override fun read(): Int = reader.read()
 }
+
+fun prettyPrintLuaValue(luaValue: LuaValue, indent: String = "") {
+    return when {
+        luaValue.istable() -> { // If it's a table, iterate through keys/values
+            val table = luaValue.checktable()!!
+            val tableContents = mutableListOf<String>()
+            val nextKey = LuaValue.NIL
+
+            table.keys().forEach { println(it.tojstring()) }
+//            table.keys().forEach { key ->
+//                val value = table[key]
+//                tableContents.add("$indent${key.tojstring()} = ${prettyPrintLuaValue(value, "$indent  ")}")
+//            }
+
+            println("{\n${tableContents.joinToString("\n")}\n}")
+        }
+
+        luaValue.isstring() -> println("\"${luaValue.tojstring()}\"")
+        else -> {
+            println("luavalue type not handled in pretty printer")
+        }
+    }
+}
+

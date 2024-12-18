@@ -6,6 +6,7 @@ package com.xingpeds.kross
 import com.github.ajalt.mordant.terminal.Terminal
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
+import com.xingpeds.kross.executableLua.LuaExecutable
 import com.xingpeds.kross.luaScripting.Lua
 import com.xingpeds.kross.luaScripting.LuaEngine
 import com.xingpeds.kross.luaScripting.executeFile
@@ -67,13 +68,18 @@ fun main() = runBlocking {
                 val lexer = Lexer(it)
                 val parser = Parser()
                 val ast = parser.parse(lexer.tokens())
-                val makeExecutable: (name: String) -> Executable = { name ->
-                    JavaOSProcess()
+                val makeExecutable: suspend (name: String) -> Executable = { name ->
+                    if (LuaEngine.userFuncExists(name)) {
+                        LuaExecutable()
+                    } else {
+                        JavaOSProcess()
+                    }
                 }
                 val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
                 executor.execute(ast)
             } catch (e: Exception) {
                 println("failed to run command: ${e.message}")
+                println(e.stackTraceToString())
             }
         }
 }
