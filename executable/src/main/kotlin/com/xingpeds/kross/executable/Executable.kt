@@ -5,12 +5,7 @@ import kotlinx.coroutines.launch
 
 typealias ExecutableResult = suspend () -> Int
 
-//data class ExecutableResult(
-//    val output: OutputStream? = null,
-//    val input: InputStream? = null,
-//    val error: InputStream? = null,
-//    val waitFor: suspend () -> Int
-//)
+
 data class Pipes(
     val programInput: Pipe? = null,
     val programOutput: Pipe? = null,
@@ -19,94 +14,86 @@ data class Pipes(
 
 interface Executable {
 
-
-    /**
-     * @param output this is the INPUT to the program being run
-     */
     suspend operator fun invoke(
         name: String,
         args: List<String>,
-        pipes: Pipes = Pipes()
+        pipes: Pipes = Pipes(),
+        env: Map<String, String> = emptyMap()
     ): ExecutableResult
 }
 
 class JavaOSProcess : Executable {
-//    override suspend fun invoke(
-//        name: String,
-//        args: List<String>,
-//        input: Executable.StreamSetting,
-//        output: Executable.StreamSetting,
-//        error: Executable.StreamSetting
-//    ): ExecutableResult {
-//
-//        val pb = ProcessBuilder(listOf(name) + args)
-//        when (input) {
-//            Executable.StreamSetting.Pipe -> pb.redirectInput(ProcessBuilder.Redirect.PIPE)
-//            Executable.StreamSetting.Inherit -> pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
-//        }
-//        when (output) {
-//            Executable.StreamSetting.Pipe -> pb.redirectOutput(ProcessBuilder.Redirect.PIPE)
-//            Executable.StreamSetting.Inherit -> pb.redirectOutput(ProcessBuilder.Redirect.INHERIT)
-//        }
-//        when (error) {
-//            Executable.StreamSetting.Pipe -> pb.redirectError(ProcessBuilder.Redirect.PIPE)
-//            Executable.StreamSetting.Inherit -> pb.redirectError(ProcessBuilder.Redirect.INHERIT)
-//        }
-//        val process = pb.start()
-//        val thing = process.outputStream
-//        return ExecutableResult(
-//            output = if (output == Executable.StreamSetting.Pipe) process.outputStream else null,
-//            input = if (input == Executable.StreamSetting.Pipe) process.inputStream else null,
-//            error = if (error == Executable.StreamSetting.Pipe) process.errorStream else null
-//        ) {
-//            process.waitFor()
-//        }
-//    }
 
     override suspend fun invoke(
         name: String,
         args: List<String>,
-        pipes: Pipes
+        pipes: Pipes,
+        env: Map<String, String>
     ): ExecutableResult {
 
+        println("Entering invoke method")
+        println("Executable name: $name")
+        println("Executable arguments: $args")
+        println("Pipes: $pipes")
+        println("Environment variables: $env")
         val pb = ProcessBuilder(listOf(name) + args)
+        pb.environment().clear()
+        println("Cleared existing environment variables")
+        pb.environment().putAll(env)
+        println("Set environment variables: ${pb.environment()}")
         if (pipes.programInput != null) {
+            println("Redirecting program input to PIPE")
             pb.redirectInput(ProcessBuilder.Redirect.PIPE)
         } else {
+            println("Inheriting program input")
             pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
         }
         if (pipes.programOutput != null) {
+            println("Redirecting program output to PIPE")
             pb.redirectOutput(ProcessBuilder.Redirect.PIPE)
         } else {
+            println("Inheriting program output")
             pb.redirectOutput(ProcessBuilder.Redirect.INHERIT)
         }
         if (pipes.programError != null) {
+            println("Redirecting program error to PIPE")
             pb.redirectError(ProcessBuilder.Redirect.PIPE)
         } else {
+            println("Inheriting program error")
             pb.redirectError(ProcessBuilder.Redirect.INHERIT)
         }
+        println("Starting the process with ProcessBuilder")
         val process = pb.start()
+        println("Process started")
         coroutineScope {
             launch {
                 if (pipes.programInput != null) {
+                    println("Connecting program input to process output stream")
                     pipes.programInput.connectTo(process.outputStream)
+                    println("Program input connected")
                 }
             }
-
             launch {
-
                 if (pipes.programOutput != null) {
+                    println("Connecting program output to process input stream")
                     pipes.programOutput.connectTo(process.inputStream)
+                    println("Program output connected")
                 }
             }
             launch {
                 if (pipes.programError != null) {
+                    println("Connecting program error to process error stream")
                     pipes.programError.connectTo(process.errorStream)
+                    println("Program error connected")
                 }
             }
         }
+        println("Returning ExecutableResult after process start")
         return {
-            process.waitFor()
+            println("Waiting for process to complete")
+            val exitCode = process.waitFor()
+            println("Process completed with exit code: $exitCode")
+            exitCode
         }
     }
 

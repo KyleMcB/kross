@@ -65,7 +65,7 @@ fun main() = runBlocking {
                 val lexer = Lexer(it)
                 val parser = Parser()
                 val ast = parser.parse(lexer.tokens())
-                val executor = Executor(state.currentDirectory, builtinCommands)
+                val executor = Executor(state.currentDirectory, builtinCommands, makeExecutable = { TODO() })
                 executor.execute(ast, env = state.environment.value)
             } catch (e: Exception) {
                 println("failed to run command: ${e.message}")

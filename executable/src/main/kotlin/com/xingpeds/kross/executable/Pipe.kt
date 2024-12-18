@@ -9,132 +9,194 @@ import org.luaj.vm2.io.LuaWriter
 import java.io.InputStream
 import java.io.OutputStream
 
-class Pipe(
-    private val channel: Channel<Int> = Channel(16, onUndeliveredElement = { println("Undelivered element: $it") }),
-) {
-    fun luaBinReader(): LuaBinInput = object : LuaBinInput() {
-        init {
-            println("luabinreader created")
-        }
+interface IPipe {
+    fun luaBinReader(): LuaBinInput
+    fun connectTo(input: InputStream)
+    fun connectTo(output: OutputStream)
+    fun luaWriter(): LuaWriter
 
-        override fun read(): Int = runBlocking {
-            println("luaBinReader::read called")
-            try {
-                println("waiting for lua read")
-                val value = channel.receive()
-                println("luabinreader received value: $value")
-                value
-            } catch (e: ClosedReceiveChannelException) {
-                println("sending -1 to lua for closing, channel is closed")
-                -1
-            }
-        }
+    @OptIn(DelicateCoroutinesApi::class)
+    fun inputStream(): InputStream
+    fun outputStream(): OutputStream
+}
 
-        override fun available(): Int {
-            println("luaBinReader::available called")
-            val available = if (channel.isClosedForReceive) 0 else 1
-            println("available() returned: $available")
-            return available
-        }
+class ClosedPiped() : IPipe {
+    override fun luaBinReader(): LuaBinInput = object : LuaBinInput() {
+        override fun read(): Int = -1 // Closed state
+        override fun available(): Int = 0
     }
 
-    fun connectTo(input: InputStream) = runBlocking {
-        println("connectTo(InputStream) started")
-        input.use {
-            println("copying InputStream to outputStream")
-            it.copyTo(outputStream())
-            println("copy completed")
-        }
-        println("closing channel after InputStream processing")
-        channel.close()
-        println("channel closed in connectTo(InputStream)")
+    override fun connectTo(input: InputStream) {
+        // Do nothing
     }
 
-    fun connectTo(output: OutputStream) = runBlocking {
-        println("connectTo(OutputStream) started")
-        println("copying inputStream to OutputStream")
-        output.use {
-            inputStream().copyTo(it)
-            println("copy completed")
-        }
-        println("connectTo(OutputStream) finished")
+    override fun connectTo(output: OutputStream) {
+        // Do nothing
     }
 
-    fun luaWriter(): LuaWriter = object : LuaWriter() {
-        init {
-            kotlin.io.println("luawriter created")
-        }
-
-        override fun print(v: String) = runBlocking {
-            kotlin.io.println("luaWriter::print called with value: $v")
-            for (byte in v.encodeToByteArray()) {
-                kotlin.io.println("luaWriter::printing byte: $byte")
-                channel.send(byte.toInt())
-            }
-            kotlin.io.println("luaWriter::print completed")
-        }
-
+    override fun luaWriter(): LuaWriter = object : LuaWriter() {
         override fun write(value: Int) {
-            runBlocking {
-                kotlin.io.println("luaWriter::writing value: $value")
-                channel.send(value)
-                kotlin.io.println("luaWriter::write completed")
-            }
+            throw IllegalStateException("Stream is closed")
         }
 
         override fun close() {
-            kotlin.io.println("luaWriter::close called, closing channel")
-            channel.close()
-            kotlin.io.println("luaWriter::close completed")
+            // No-op, already closed
+        }
+
+        override fun print(v: String) {
+            throw IllegalStateException("Stream is closed")
+        }
+    }
+
+    override fun inputStream(): InputStream = object : InputStream() {
+        override fun read(): Int = -1 // Closed state
+        override fun available(): Int = 0
+    }
+
+    override fun outputStream(): OutputStream = object : OutputStream() {
+        override fun write(b: Int) {
+            throw IllegalStateException("Stream is closed")
+        }
+    }
+
+}
+
+class Pipe(
+    private val channel: Channel<Int> = Channel(16, onUndeliveredElement = { println("Undelivered element: $it") }),
+) : IPipe {
+
+    private var _inputStream: InputStream? = null
+    private var _outputStream: OutputStream? = null
+    private var _luaWriter: LuaWriter? = null
+    private var _luaBinInput: LuaBinInput? = null
+    override fun luaBinReader(): LuaBinInput {
+
+        return if (this._luaBinInput != null) {
+            this._luaBinInput!!
+        } else {
+            val luaInput = object : LuaBinInput() {
+
+
+                override fun read(): Int = runBlocking {
+                    try {
+                        val value = channel.receive()
+                        value
+                    } catch (e: ClosedReceiveChannelException) {
+                        -1
+                    }
+                }
+
+                override fun available(): Int {
+                    val available = if (channel.isClosedForReceive) 0 else 1
+                    return available
+                }
+            }
+            this._luaBinInput = luaInput
+            luaInput
+        }
+    }
+
+
+    override fun connectTo(input: InputStream) = runBlocking {
+        input.use {
+            while (true) {
+                val byte = it.read()
+                if (byte == -1) break
+                channel.send(byte)
+            }
+        }
+        channel.close()
+        Unit
+    }
+
+    override fun connectTo(output: OutputStream) = runBlocking {
+        output.use {
+            for (byte in channel) {
+                output.write(byte)
+            }
+        }
+    }
+
+    override fun luaWriter(): LuaWriter {
+        return if (this._luaWriter != null) {
+            this._luaWriter!!
+        } else {
+            val writer = object : LuaWriter() {
+                init {
+                }
+
+                override fun print(v: String) = runBlocking {
+                    for (byte in v.encodeToByteArray()) {
+                        channel.send(byte.toInt())
+                    }
+                }
+
+                override fun write(value: Int) {
+                    runBlocking {
+                        channel.send(value)
+                    }
+                }
+
+                override fun close() {
+                    channel.close()
+                }
+            }
+            this._luaWriter = writer
+            writer
         }
     }
 
     @OptIn(DelicateCoroutinesApi::class)
-    fun inputStream(): InputStream = object : InputStream() {
-        override fun read(): Int {
-            println("inputStream::read called")
-            return runBlocking {
-                try {
-                    println("inputStream::waiting to receive data from channel")
-                    val data = channel.receive()
-                    println("inputStream::received data: $data")
-                    data
-                } catch (e: ClosedReceiveChannelException) {
-                    println("inputStream::channel is closed, returning -1")
-                    -1
+    override fun inputStream(): InputStream {
+        return if (_inputStream != null) {
+            this._inputStream!!
+        } else {
+
+            val input = object : InputStream() {
+                override fun read(): Int {
+                    return runBlocking {
+                        try {
+                            val data = channel.receive()
+                            data
+                        } catch (e: ClosedReceiveChannelException) {
+                            -1
+                        }
+                    }
+                }
+
+                override fun available(): Int {
+                    val available = if (channel.isClosedForReceive) {
+                        0
+                    } else {
+                        1
+                    }
+                    return available
                 }
             }
-        }
-
-        override fun available(): Int {
-            println("inputStream::available called")
-            val available = if (channel.isClosedForReceive) {
-                println("inputStream::channel is closed, returning 0")
-                0
-            } else {
-                println("inputStream::channel is open, returning 1")
-                1
-            }
-            return available
+            this._inputStream = input
+            input
         }
     }
 
-    fun outputStream(): OutputStream = object : OutputStream() {
-        override fun write(b: Int) {
-            println("outputStream::write called with value: $b")
-            runBlocking {
-                println("outputStream::sending value $b to channel")
-                channel.send(b)
-                println("outputStream::sent value to channel")
-            }
-        }
+    override fun outputStream(): OutputStream {
+        return if (this._outputStream != null) {
+            this._outputStream!!
+        } else {
+            val output = object : OutputStream() {
+                override fun write(b: Int) {
+                    runBlocking {
+                        channel.send(b)
+                    }
+                }
 
-        override fun close() {
-            println("outputStream::close called, closing channel")
-            runBlocking {
-                channel.close()
-                println("outputStream::closed channel")
+                override fun close() {
+                    runBlocking {
+                        channel.close()
+                    }
+                }
             }
+            this._outputStream = output
+            output
         }
     }
 }

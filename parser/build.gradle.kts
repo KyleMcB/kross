@@ -15,6 +15,7 @@ java {
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    implementation(project(":shell-state"))
     testImplementation(kotlin("test"))
     implementation(project(":executable"))
 
