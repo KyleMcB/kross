@@ -18,7 +18,7 @@ interface Executable {
         name: String,
         args: List<String>,
         pipes: Pipes = Pipes(),
-        env: Map<String, String> = emptyMap()
+        env: Map<String, String>
     ): ExecutableResult
 }
 
