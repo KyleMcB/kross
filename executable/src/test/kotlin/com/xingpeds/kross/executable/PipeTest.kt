@@ -7,7 +7,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
-
+// TODO clean up printlns
 class PipeTest {
     @Test
     fun simpleLuaWriter() = runTest(timeout = 5.seconds) {
