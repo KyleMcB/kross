@@ -8,6 +8,7 @@ import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -90,7 +91,82 @@ class Executor(
             )().also { results.add(it) }
         } else {
             //handle size of n pipeline
+            val pipeList = mutableListOf<Pipe>()
+            val waiting = mutableListOf<ExecutableResult>()
+            for ((index, command) in pipeline.commands.withIndex()) {
+                when (index) {
+                    0 -> {
+                        // handle the first command
+                        println("first element")
+                        val pipe = Pipe()
+                        pipeList.add(pipe)
+                        val pipes = this@Executor.pipes.copy(programOutput = pipe)
+                        val result = exeExternalProcess(
+                            name = command.name.value,
+                            arguments = command.arguments,
+                            pipes = pipes
+                        )
+                        waiting.add(result)
+                    }
 
+                    pipeline.commands.lastIndex -> {
+                        //handle the last element
+                        println("last element")
+                        val pipe = pipeList.last()
+                        val previous = waiting.last()
+                        val pipes = this@Executor.pipes.copy(programInput = pipe)
+                        coroutineScope {
+                            launch {
+                                println("exe last element")
+                                waiting.add(
+                                    exeExternalProcess(
+                                        name = command.name.value,
+                                        arguments = command.arguments,
+                                        pipes = pipes
+                                    )
+                                )
+                            }
+                            launch {
+                                println("waiting for middle to finish")
+                                previous().also { results.add(it) }
+
+                                println("closing middle pipe")
+                                pipe.close()
+                            }
+                        }
+                        println("waiting for final to finish")
+                        return@coroutineScope waiting.last()().also { results.add(it) }
+                    }
+
+                    else -> {
+                        //hand a middle element
+
+                        val pipe = pipeList.last()
+                        val previousResult = waiting.last()
+                        val nextPipe = Pipe()
+                        val pipes = this@Executor.pipes.copy(programInput = pipe, programOutput = nextPipe)
+                        pipeList.add(nextPipe)
+                        println("starting middle command")
+                        coroutineScope {
+                            launch {
+                                println("exe middle command")
+                                waiting.add(
+                                    exeExternalProcess(
+                                        name = command.name.value,
+                                        arguments = command.arguments,
+                                        pipes = pipes
+                                    )
+                                )
+                            }
+                            launch {
+                                println("waiting for previous to finish")
+                                previousResult().also { results.add(it) }
+                                pipe.close()
+                            }
+                        }
+                    }
+                }
+            }
             0
         }
 
