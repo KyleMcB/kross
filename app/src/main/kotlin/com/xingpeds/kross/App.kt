@@ -79,6 +79,7 @@ fun main() = runBlocking {
                 executor.execute(ast)
             } catch (e: Exception) {
                 println("failed to run command: ${e.message}")
+// this should be in debug mode only
                 println(e.stackTraceToString())
             }
         }
