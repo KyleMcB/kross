@@ -75,9 +75,7 @@ class Pipe(
                 if (byte == -1) break
                 channel.send(byte)
             }
-        }
-    }.also {
-        channel.close()
+        }.also { channel.close() }
     }
 
     override fun connectTo(output: OutputStream) = runBlocking {

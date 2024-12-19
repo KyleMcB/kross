@@ -4,6 +4,7 @@
 package com.xingpeds.kross
 
 import com.github.ajalt.mordant.terminal.Terminal
+import com.xingpeds.kross.builtins.Builtin
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.executableLua.LuaExecutable
@@ -71,6 +72,9 @@ fun main() = runBlocking {
                 val makeExecutable: suspend (name: String) -> Executable = { name ->
                     if (LuaEngine.userFuncExists(name)) {
                         LuaExecutable()
+                    } else if (Builtin.builtinCommands.containsKey(name)) {
+                        println("found builtin")
+                        Builtin.builtinCommands[name]!!
                     } else {
                         JavaOSProcess()
                     }

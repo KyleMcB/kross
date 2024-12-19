@@ -33,6 +33,7 @@ dependencies {
     implementation(project(":luaScripting"))
     implementation(project(":executable"))
     implementation(project(":executable-lua"))
+    implementation(project(":builtins"))
     implementation(libs.kotlinx.serialization.json)
     implementation("com.github.ajalt.mordant:mordant:3.0.1")
 

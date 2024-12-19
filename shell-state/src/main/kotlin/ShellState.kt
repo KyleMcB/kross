@@ -18,6 +18,7 @@ object ShellStateObject : ShellState {
         get() = _currentDirectory
 
     override suspend fun changeDirectory(directory: File) {
+        println("cd to ${directory.absolutePath}")
         if (directory.exists() && directory.isDirectory) {
             _currentDirectory.emit(directory)
         } else {

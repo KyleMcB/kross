@@ -6,13 +6,15 @@ import com.xingpeds.kross.executable.Pipes
 import org.luaj.vm2.LuaString
 import org.luaj.vm2.LuaValue
 import org.luaj.vm2.Varargs
+import java.io.File
 
 class LuaExecutable : Executable {
     override suspend fun invoke(
         name: String,
         args: List<String>,
         pipes: Pipes,
-        env: Map<String, String>
+        env: Map<String, String>,
+        cwd: File
     ): ExecutableResult {
         val engine = com.xingpeds.kross.luaScripting.LuaEngine
         if (engine.userFuncExists(name)) {

@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
+
 // TODO clean up printlns
 class PipeTest {
     @Test
@@ -151,7 +152,7 @@ class PipeTest {
             }
             // Reading from the pipe's InputStream
             launch {
-                pipe.inputStream().use { it.copyTo(output.asOutputStream()) }
+                pipe.connectTo(output.asOutputStream())
                 println("Finished reading data from pipe's InputStream")
             }
         }.join()
