@@ -78,6 +78,8 @@ object LuaEngine : Lua {
     }            // Create the `api` table
     val krossTable = LuaValue.tableOf().apply {
         this["api"] = apiTable
+        this["userFuncs"] = userTable
+        this["builtin"] = builtinTable
     }          // Create the `kross` table
     val global = Globals().apply {
         load(BaseLib())
@@ -93,8 +95,6 @@ object LuaEngine : Lua {
         LoadState.install(this)
         LuaC.install(this)
         this["kross"] = krossTable                   // Add the `kross` table to Globals
-        this["func"] = userTable
-        this["builtin"] = builtinTable
     }
 
     init {
