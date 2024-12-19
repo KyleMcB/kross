@@ -19,6 +19,8 @@ class LuaExecutable : Executable {
 
             val lua = com.xingpeds.kross.luaScripting.LuaEngine.global
             val originalOutput = lua.STDOUT
+            val originalInput = lua.STDIN
+            val originalErr = lua.STDERR
             val programOutput = pipes.programOutput
             if (programOutput != null) {
                 lua.STDOUT = programOutput.luaWriter()
@@ -37,6 +39,11 @@ class LuaExecutable : Executable {
                             listOf(LuaString.valueOf(key), LuaString.valueOf(value))
                         }.toTypedArray())
                     )
+                programOutput?.close()
+
+                lua.STDOUT = originalOutput
+                lua.STDIN = originalInput
+                lua.STDERR = originalErr
                 funcReturn.toint(1)
             }
         } else throw Exception("could not find lua function $name")

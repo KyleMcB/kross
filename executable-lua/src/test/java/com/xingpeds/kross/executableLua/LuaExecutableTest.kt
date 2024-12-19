@@ -40,7 +40,6 @@ class LuaExecutableTest {
             }
             launch {
                 subject("hi", emptyList(), pipes = Pipes(programOutput = pipe), env = emptyMap())()
-                pipe.close()
             }
         }.join()
         assertEquals("Hello, World!", output.toString().trim())
