@@ -13,6 +13,7 @@ import org.luaj.vm2.compiler.LuaC
 import org.luaj.vm2.io.LuaBinInput
 import org.luaj.vm2.io.LuaWriter
 import org.luaj.vm2.lib.*
+import org.luaj.vm2.lib.jse.JseIoLib
 import java.io.*
 
 interface Lua {
@@ -69,6 +70,10 @@ object LuaEngine : Lua {
         load(TableLib())
         load(StringLib())
         load(CoroutineLib())
+        load(JseIoLib())
+        load(MathLib())
+        load(OsLib())
+
         LoadState.install(this)
         LuaC.install(this)
         this["kross"] = krossTable                   // Add the `kross` table to Globals
