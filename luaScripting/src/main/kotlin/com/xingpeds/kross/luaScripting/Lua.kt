@@ -1,14 +1,14 @@
 package com.xingpeds.kross.luaScripting
 
+import com.xingpeds.kross.state.Builtin
+import com.xingpeds.kross.state.BuiltinFun
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.luaj.vm2.Globals
-import org.luaj.vm2.LoadState
-import org.luaj.vm2.LuaFunction
-import org.luaj.vm2.LuaValue
+import kotlinx.coroutines.runBlocking
+import org.luaj.vm2.*
 import org.luaj.vm2.compiler.LuaC
 import org.luaj.vm2.io.LuaBinInput
 import org.luaj.vm2.io.LuaWriter
@@ -40,9 +40,25 @@ suspend fun Lua.executeFile(
 
 fun String.toLua(): LuaValue = LuaValue.valueOf(this)
 
+fun adapter(builtin: BuiltinFun): LuaFunction = object : VarArgFunction() {
+    override fun invoke(args: Varargs): Varargs = runBlocking {
+        val argList = mutableListOf<String>()
+        for (i in 1..args.narg()) {
+            val arg = args.arg(i)
+            argList.add(arg.tojstring())
+        }
+        LuaValue.varargsOf(arrayOf(LuaValue.valueOf(builtin(argList))))
+    }
+}
+
 object LuaEngine : Lua {
     val _userFunctions = MutableStateFlow<Map<String, LuaFunction>>(emptyMap())
     val userTable = LuaValue.tableOf()
+    val builtinTable = LuaValue.tableOf().apply {
+        Builtin.builtinFuns.forEach { (name: String, func: BuiltinFun) ->
+            this[name] = adapter(func)
+        }
+    }
 
     val registerFunction = object : TwoArgFunction() {
         override fun call(nameArg: LuaValue, funcArg: LuaValue): LuaValue {
@@ -78,6 +94,7 @@ object LuaEngine : Lua {
         LuaC.install(this)
         this["kross"] = krossTable                   // Add the `kross` table to Globals
         this["func"] = userTable
+        this["builtin"] = builtinTable
     }
 
     init {
@@ -142,26 +159,4 @@ fun inputAdapter(input: InputStream): LuaBinInput = object : LuaBinInput() {
     override fun read(): Int = reader.read()
 }
 
-fun prettyPrintLuaValue(luaValue: LuaValue, indent: String = "") {
-    return when {
-        luaValue.istable() -> { // If it's a table, iterate through keys/values
-            val table = luaValue.checktable()!!
-            val tableContents = mutableListOf<String>()
-            val nextKey = LuaValue.NIL
-
-            table.keys().forEach { println(it.tojstring()) }
-//            table.keys().forEach { key ->
-//                val value = table[key]
-//                tableContents.add("$indent${key.tojstring()} = ${prettyPrintLuaValue(value, "$indent  ")}")
-//            }
-
-            println("{\n${tableContents.joinToString("\n")}\n}")
-        }
-
-        luaValue.isstring() -> println("\"${luaValue.tojstring()}\"")
-        else -> {
-            println("luavalue type not handled in pretty printer")
-        }
-    }
-}
 
