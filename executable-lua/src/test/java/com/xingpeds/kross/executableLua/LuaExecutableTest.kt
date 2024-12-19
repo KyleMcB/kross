@@ -4,20 +4,42 @@ import com.xingpeds.kross.executable.Pipe
 import com.xingpeds.kross.executable.Pipes
 import com.xingpeds.kross.executable.asOutputStream
 import com.xingpeds.kross.luaScripting.LuaEngine
+import com.xingpeds.kross.luaScripting.toLua
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class LuaExecutableTest {
 
     @Test
-    fun one() = runTest {
-        LuaEngine.initJob?.join()
+    fun manualTest() = runTest {
         val subject = LuaExecutable()
-        subject("apples", listOf("hellergbo"), pipes = Pipes(), env = emptyMap())()
+        val luaEngine = LuaEngine
+        val helloWorldProgram = "print('Hello, World!')" // Lua program as a string
+        val luaFunc = luaEngine.global.load(helloWorldProgram)
+        luaEngine.registerFunction("hi".toLua(), luaFunc)
+        subject("hi", emptyList(), pipes = Pipes(), env = emptyMap())()
     }
+
+    @Test
+    fun outputStream() = runTest {
+        val subject = LuaExecutable()
+        val luaEngine = LuaEngine
+        val helloWorldProgram = "print('Hello, World!')" // Lua program as a string
+        val luaFunc = luaEngine.global.load(helloWorldProgram)
+        luaEngine.registerFunction("hi".toLua(), luaFunc)
+        val pipe = Pipe()
+        val output = StringBuilder()
+        launch {
+            pipe.connectTo(output.asOutputStream())
+        }
+        subject("hi", emptyList(), pipes = Pipes(programOutput = pipe), env = emptyMap())()
+        assertEquals("Hello, world!", output.toString().trim())
+    }
+
 
     @Test
     fun two() = runTest {

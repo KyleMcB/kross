@@ -37,6 +37,7 @@ suspend fun Lua.executeFile(
     this.executeLua(codeAsText, input, output, error)
 }
 
+fun String.toLua(): LuaValue = LuaValue.valueOf(this)
 
 object LuaEngine : Lua {
     val _userFunctions = MutableStateFlow<Map<String, LuaFunction>>(emptyMap())
