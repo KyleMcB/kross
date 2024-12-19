@@ -18,7 +18,7 @@ typealias BuiltinCommand = suspend (args: List<String>) -> Int
 
 class Executor(
     private val cwd: StateFlow<File>,
-    private val makeExecutable: (name: String) -> Executable,
+    private val makeExecutable: suspend (name: String) -> Executable,
     private val pipes: Pipes = Pipes(),
     private val shellState: ShellState = ShellStateObject
 ) {
