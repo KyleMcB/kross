@@ -10,6 +10,7 @@ import java.io.Closeable
 import java.io.InputStream
 import java.io.OutputStream
 
+private fun log(any: Any) = kotlin.io.println(any)
 interface IPipe : Closeable {
     fun luaBinReader(): LuaBinInput
     fun connectTo(input: InputStream)
@@ -126,21 +127,25 @@ class Pipe(
         } else {
             val writer = object : LuaWriter() {
                 init {
+                    log("luawriter created")
                 }
 
                 override fun print(v: String) = runBlocking {
                     for (byte in v.encodeToByteArray()) {
+                        log("writing $byte")
                         channel.send(byte.toInt())
                     }
                 }
 
                 override fun write(value: Int) {
                     runBlocking {
+                        log("writing $value")
                         channel.send(value)
                     }
                 }
 
                 override fun close() {
+                    log("closing writer")
                     channel.close()
                 }
             }

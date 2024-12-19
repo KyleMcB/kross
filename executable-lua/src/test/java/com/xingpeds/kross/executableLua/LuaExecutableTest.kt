@@ -33,11 +33,17 @@ class LuaExecutableTest {
         luaEngine.registerFunction("hi".toLua(), luaFunc)
         val pipe = Pipe()
         val output = StringBuilder()
-        launch {
-            pipe.connectTo(output.asOutputStream())
-        }
-        subject("hi", emptyList(), pipes = Pipes(programOutput = pipe), env = emptyMap())()
-        assertEquals("Hello, world!", output.toString().trim())
+        CoroutineScope(Dispatchers.Default).launch {
+            launch {
+
+                pipe.connectTo(output.asOutputStream())
+            }
+            launch {
+                subject("hi", emptyList(), pipes = Pipes(programOutput = pipe), env = emptyMap())()
+                pipe.close()
+            }
+        }.join()
+        assertEquals("Hello, World!", output.toString().trim())
     }
 
 

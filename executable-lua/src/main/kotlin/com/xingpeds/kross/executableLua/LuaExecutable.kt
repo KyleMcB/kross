@@ -18,6 +18,11 @@ class LuaExecutable : Executable {
         if (engine.userFuncExists(name)) {
 
             val lua = com.xingpeds.kross.luaScripting.LuaEngine.global
+            val originalOutput = lua.STDOUT
+            val programOutput = pipes.programOutput
+            if (programOutput != null) {
+                lua.STDOUT = programOutput.luaWriter()
+            }
             val function = lua["func"][name].checkfunction() ?: throw Exception("could not find lua function $name")
             return {
 // I have something thinking to do about how to invoke the lua function
