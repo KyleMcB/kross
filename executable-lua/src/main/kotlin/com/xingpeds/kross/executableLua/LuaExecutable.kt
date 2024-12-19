@@ -36,7 +36,6 @@ class LuaExecutable : Executable {
             val function = lua["func"][name].checkfunction() ?: throw Exception("could not find lua function $name")
             return {
 // I have something thinking to do about how to invoke the lua function
-                println("program started")
                 val funcReturn: Varargs =
                     function.invoke(
                         LuaValue.listOf(
@@ -48,7 +47,6 @@ class LuaExecutable : Executable {
                             listOf(LuaString.valueOf(key), LuaString.valueOf(value))
                         }.toTypedArray())
                     )
-                println("program finished")
                 programOutput?.close()
 
                 lua.STDOUT = originalOutput

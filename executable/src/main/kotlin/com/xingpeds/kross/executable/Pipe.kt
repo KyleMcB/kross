@@ -10,7 +10,8 @@ import java.io.Closeable
 import java.io.InputStream
 import java.io.OutputStream
 
-private fun log(any: Any) = kotlin.io.println(any)
+//private fun log(any: Any) = kotlin.io.println(any)
+private fun log(any: Any) = Unit
 interface IPipe : Closeable {
     fun luaBinReader(): LuaBinInput
     fun connectTo(input: InputStream)
