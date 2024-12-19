@@ -1,6 +1,5 @@
 package com.xingpeds.kross.executable
 
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.runBlocking
@@ -18,9 +17,6 @@ interface IPipe : Closeable {
     fun connectTo(output: OutputStream)
     fun luaWriter(): LuaWriter
 
-    @OptIn(DelicateCoroutinesApi::class)
-    fun inputStream(): InputStream
-    fun outputStream(): OutputStream
 }
 
 class Pipe(
@@ -72,12 +68,13 @@ class Pipe(
             while (true) {
                 val byte = it.read()
                 log("${this@Pipe} read $byte")
-                if (byte == -1) break
+                if (byte == -1) {
+//                    channel.send(byte)
+                    break
+                }
                 channel.send(byte)
             }
         }
-    }.also {
-        channel.close()
     }
 
     override fun connectTo(output: OutputStream) = runBlocking {
@@ -119,60 +116,6 @@ class Pipe(
             }
             this._luaWriter = writer
             writer
-        }
-    }
-
-    @OptIn(DelicateCoroutinesApi::class)
-    override fun inputStream(): InputStream {
-        return if (_inputStream != null) {
-            this._inputStream!!
-        } else {
-
-            val input = object : InputStream() {
-                override fun read(): Int {
-                    return runBlocking {
-                        try {
-                            val data = channel.receive()
-                            data
-                        } catch (e: ClosedReceiveChannelException) {
-                            -1
-                        }
-                    }
-                }
-
-                override fun available(): Int {
-                    val available = if (channel.isClosedForReceive) {
-                        0
-                    } else {
-                        1
-                    }
-                    return available
-                }
-            }
-            this._inputStream = input
-            input
-        }
-    }
-
-    override fun outputStream(): OutputStream {
-        return if (this._outputStream != null) {
-            this._outputStream!!
-        } else {
-            val output = object : OutputStream() {
-                override fun write(b: Int) {
-                    runBlocking {
-                        channel.send(b)
-                    }
-                }
-
-                override fun close() {
-                    runBlocking {
-                        channel.close()
-                    }
-                }
-            }
-            this._outputStream = output
-            output
         }
     }
 

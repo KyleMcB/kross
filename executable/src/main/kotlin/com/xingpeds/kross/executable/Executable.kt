@@ -2,6 +2,7 @@ package com.xingpeds.kross.executable
 
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.io.File
 
 typealias ExecutableResult = suspend () -> Int
 
@@ -18,7 +19,8 @@ interface Executable {
         name: String,
         args: List<String>,
         pipes: Pipes = Pipes(),
-        env: Map<String, String>
+        env: Map<String, String>,
+        cwd: File
     ): ExecutableResult
 }
 
@@ -28,10 +30,12 @@ class JavaOSProcess : Executable {
         name: String,
         args: List<String>,
         pipes: Pipes,
-        env: Map<String, String>
+        env: Map<String, String>,
+        cwd: File
     ): ExecutableResult {
 
         val pb = ProcessBuilder(listOf(name) + args)
+        pb.directory(cwd)
         pb.environment().clear()
         pb.environment().putAll(env)
         if (pipes.programInput != null) {

@@ -9,10 +9,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class LuaExecutableTest {
+
+    private val cwd: File = File(".").absoluteFile
 
     val helloWorldProgram = "print('Hello, World!')" // Lua program as a string
 
@@ -22,7 +25,7 @@ class LuaExecutableTest {
         val luaEngine = LuaEngine
         val luaFunc = luaEngine.global.load(helloWorldProgram)
         luaEngine.registerFunction("hi".toLua(), luaFunc)
-        subject("hi", emptyList(), pipes = Pipes(), env = emptyMap())()
+        subject("hi", emptyList(), pipes = Pipes(), env = emptyMap(), cwd = cwd)()
     }
 
     @Test
@@ -40,7 +43,7 @@ class LuaExecutableTest {
                 pipe.connectTo(output.asOutputStream())
             }
             launch {
-                subject("hi", emptyList(), pipes = Pipes(programOutput = pipe), env = emptyMap())()
+                subject("hi", emptyList(), pipes = Pipes(programOutput = pipe), env = emptyMap(), cwd = cwd)()
             }
         }.join()
         assertEquals("Hello, World!", output.toString().trim())
@@ -77,7 +80,7 @@ print(input) -- After io.read""".trimIndent()
             }
             launch {
                 println("started invoke")
-                subject.invoke("cat", emptyList(), pipes = pipes, env = emptyMap())()
+                subject.invoke("cat", emptyList(), pipes = pipes, env = emptyMap(), cwd = cwd)()
                 println("finished invoke")
             }
         }.join()

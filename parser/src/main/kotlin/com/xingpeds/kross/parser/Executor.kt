@@ -195,7 +195,7 @@ class Executor(
             }
         }
         val executable = makeExecutable(name)
-        val finish = executable(name, resolvedArguments, pipes = pipes, env = env)
+        val finish = executable(name, resolvedArguments, pipes = pipes, env = env, cwd = cwd.value)
         finish
     }
 
