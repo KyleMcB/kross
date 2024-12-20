@@ -1,9 +1,8 @@
 package com.xingpeds.kross.parser
 
+import com.xingpeds.kross.entities.*
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
-import com.xingpeds.kross.executable.Pipe
-import com.xingpeds.kross.executable.Pipes
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 
-
+private fun log(any: Any) = println("--ExecutorTest: $any")
 class ExecutorTest {
 
     val processExecutable: (name: String) -> Executable = { _: String -> JavaOSProcess() }
@@ -37,15 +36,20 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-            programOutput = Pipe()
+            programOutput = Chan()
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         CoroutineScope(Dispatchers.Default).launch {
             launch {
+                log("starting pipe")
                 pipes.programOutput?.connectTo(output.asOutputStream())
+                log("finished pipe")
             }
             launch {
+                log("executing ast")
                 executor.execute(ast)
+                pipes.programOutput?.close()
+                log("finished executing ast")
             }
         }.join()
         assertEquals("hello world", output.toString().trim())
@@ -67,19 +71,21 @@ class ExecutorTest {
         val output = StringBuilder()
         val input = "hello world".byteInputStream()
         val pipes = Pipes(
-            programInput = Pipe(),
-            programOutput = Pipe()
+            programInput = Chan(),
+            programOutput = Chan()
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         CoroutineScope(Dispatchers.Default).launch {
             launch {
                 pipes.programInput?.connectTo(input)
-                pipes.programInput?.close()
             }
             launch {
                 pipes.programOutput?.connectTo(output.asOutputStream())
             }
             executor.execute(ast)
+            log("closing pipes......")
+            pipes.programInput?.close()
+            pipes.programOutput?.close()
         }.join()
         assertEquals("hello world", output.toString().trim())
     }
@@ -101,7 +107,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-            programOutput = Pipe()
+            programOutput = Chan()
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         CoroutineScope(Dispatchers.Default).launch {
@@ -109,8 +115,40 @@ class ExecutorTest {
                 pipes.programOutput?.connectTo(output.asOutputStream())
             }
             executor.execute(ast)
+            pipes.programOutput?.close()
         }.join()
         assertEquals("world", output.toString().trim())
+    }
+
+    @Test
+    fun seq1() = runTest(timeout = 10.seconds) {
+        val ast = AST.Program(
+            listOf(
+                AST.Command.Pipeline(
+                    listOf(AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.Argument.WordArgument("hello")))),
+                ),
+                AST.Command.Pipeline(
+                    listOf(AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.Argument.WordArgument("world")))),
+                ),
+
+                )
+        )
+        val output = StringBuilder()
+        val pipe = SupervisorChannel()
+        val pipes = Pipes(
+            programOutput = pipe
+        )
+        val executor = Executor(cwd, processExecutable, pipes = pipes)
+        CoroutineScope(Dispatchers.Default).launch {
+            launch {
+                pipes.programOutput?.connectTo(output.asOutputStream())
+            }
+            launch {
+                executor.execute(ast)
+                pipe.superClose()
+            }
+        }.join()
+        assertEquals("hello\nworld\n", output.toString())
     }
 
     @Test
@@ -231,34 +269,6 @@ class ExecutorTest {
         assertEquals(0, returnCodes[1])
     }
 
-    @Test
-    fun seq1() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
-            listOf(
-                AST.Command.Pipeline(
-                    listOf(AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.Argument.WordArgument("hello")))),
-                ),
-                AST.Command.Pipeline(
-                    listOf(AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.Argument.WordArgument("world")))),
-                ),
-
-                )
-        )
-        val output = StringBuilder()
-        val pipes = Pipes(
-            programOutput = Pipe()
-        )
-        val executor = Executor(cwd, processExecutable, pipes = pipes)
-        CoroutineScope(Dispatchers.Default).launch {
-            launch {
-                pipes.programOutput?.connectTo(output.asOutputStream())
-            }
-            launch {
-                executor.execute(ast)
-            }
-        }.join()
-        assertEquals("hello\nworld\n", output.toString())
-    }
 
     @Test
     fun pipe2() = runTest(timeout = 10.seconds) {
@@ -282,7 +292,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-            programOutput = Pipe(),
+            programOutput = Chan(),
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         val scope = CoroutineScope(Dispatchers.Default)
@@ -318,7 +328,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-            programOutput = Pipe(),
+            programOutput = Chan(),
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         val scope = CoroutineScope(Dispatchers.Default)
@@ -332,6 +342,43 @@ class ExecutorTest {
             }
         }.join()
         assertEquals("hello there", output.toString().trim())
+    }
+
+    @Test
+    fun grepChan() = runTest(timeout = 10.seconds) {
+        val ast = AST.Program(
+            commands = listOf(
+                AST.Command.Pipeline(
+                    commands = listOf(
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("ls"),
+                        ),
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("grep"),
+                            arguments = listOf(
+                                AST.Argument.WordArgument("build"),
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        val output = StringBuilder()
+        val pipes = Pipes(
+            programOutput = Chan(),
+        )
+        val executor = Executor(cwd, processExecutable, pipes = pipes)
+        val scope = CoroutineScope(Dispatchers.Default)
+        scope.launch {
+            launch {
+                executor.execute(ast)
+                pipes.programOutput?.close()
+            }
+            launch {
+                pipes.programOutput?.connectTo(output.asOutputStream())
+            }
+        }.join()
+        println(output)
     }
 
     @Test
@@ -362,17 +409,18 @@ class ExecutorTest {
                 )
             )
         )
-//        val executor = executorCwd()
+        val pipe = Chan()
+        val executor = Executor(cwd, processExecutable, pipes = Pipes(programOutput = pipe))
         val output = StringBuilder()
-        val streams = Executor.Streams(outputStream = output.asOutputStream())
         CoroutineScope(Dispatchers.Default).launch {
-//            executor.execute(ast, streams = streams)
+            launch {
+                executor.execute(ast)
+            }
+            launch {
+                pipe.connectTo(output.asOutputStream())
+            }
         }.join()
-        // Note: Adjust expectedOutput according to the date format implementation
-//        val expectedOutput = /* Adjust expected output here if applicable */
-//        assertEquals(expectedOutput, output.toString().trim())
-        println(output.toString().trim())
-
+        assertEquals(2, output.toString().count { it == ':' })
     }
 
 }

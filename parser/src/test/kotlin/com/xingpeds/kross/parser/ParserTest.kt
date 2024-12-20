@@ -1,5 +1,6 @@
 package com.xingpeds.kross.parser
 
+import com.xingpeds.kross.entities.AST
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

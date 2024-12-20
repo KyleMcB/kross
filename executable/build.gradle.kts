@@ -14,9 +14,10 @@ java {
 }
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation(kotlin("test"))
 
+    implementation(project(":entities"))
     implementation("com.soywiz.korlibs.luak:luak:3.4.0")
     implementation(libs.kotlinx.serialization.json)
 // TODO clean up

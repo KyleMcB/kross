@@ -1,20 +1,17 @@
 package com.xingpeds.kross.parser
 
+import com.xingpeds.kross.entities.*
 import com.xingpeds.kross.executable.Executable
-import com.xingpeds.kross.executable.ExecutableResult
-import com.xingpeds.kross.executable.Pipe
-import com.xingpeds.kross.executable.Pipes
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import java.io.File
-import java.io.InputStream
-import java.io.OutputStream
 
-
-typealias BuiltinCommand = suspend (args: List<String>) -> Int
+private fun log(any: Any) = println("[Executor] $any")
 
 class Executor(
     private val cwd: StateFlow<File>,
@@ -22,28 +19,17 @@ class Executor(
     private val pipes: Pipes = Pipes(),
     private val shellState: ShellState = ShellStateObject
 ) {
+
     private val results = mutableListOf<Int>()
+    suspend fun execute(ast: AST.Program): List<Int> {
 
-    data class Streams(
-        val inputStream: InputStream? = null,
-        val outputStream: OutputStream? = null,
-        val errorStream: OutputStream? = null,
-    )
-
-    suspend fun execute(
-        ast: AST.Program,
-    ): List<Int> {
-
-        for (command in ast.commands) {
+        ast.commands.forEach { command ->
             exeCommand(command)
         }
-        pipes.programInput?.close()
-        pipes.programOutput?.close()
-        pipes.programError?.close()
         return results
     }
 
-    suspend fun exeCommand(command: AST.Command): Int {
+    private suspend fun exeCommand(command: AST.Command): Int {
         return when (command) {
             is AST.Command.And -> exeAnd(command)
             is AST.Command.Or -> exeOr(command)
@@ -53,204 +39,116 @@ class Executor(
 
     private suspend fun exeOr(command: AST.Command.Or): Int {
         val left = exeCommand(command.left)
-        if (left != 0) {
-            val right = exeCommand(command.right)
-            return left * right
+        if (left == 0) {
+            return 0
+        }
+        return exeCommand(command.right)
+    }
+
+    private suspend fun exeAnd(command: AST.Command.And): Int {
+        val left = exeCommand(command.left)
+        if (left == 0) {
+            return exeCommand(command.right)
         }
         return left
     }
 
-    private suspend fun exePipeline(
-        pipeline: AST.Command.Pipeline,
-    ): Int = coroutineScope {
-
+    private suspend fun exePipeline(pipeline: AST.Command.Pipeline): Int {
         val commands = pipeline.commands
-        if (pipeline.commands.size == 1) {
-            val command = pipeline.commands.first()
-            return@coroutineScope exeExternalProcess(
-                name = command.name.value,
-                arguments = command.arguments,
-                pipes = pipes
-            )().also { results.add(it) }
+        return if (commands.size == 1) {
+            exeSimpleCommand(commands.first())
         } else if (commands.size == 2) {
-            val first = commands.first()
-            val second = commands.last()
-            val pipe = Pipe()
-            val firstPipes = this@Executor.pipes.copy(programOutput = pipe)
-            val secondPipes = this@Executor.pipes.copy(programInput = pipe)
-            exeExternalProcess(
-                name = first.name.value,
-                arguments = first.arguments,
-                pipes = firstPipes
-            )().also { results.add(it) }
-            pipe.close()
-            exeExternalProcess(
-                name = second.name.value,
-                arguments = second.arguments,
-                pipes = secondPipes
-            )().also { results.add(it) }
+            val pipe = Chan()
+            var returnCode = 99
+            coroutineScope {
+                launch {
+                    val first = exeSimpleCommand(commands.first(), pipes.copy(programOutput = pipe))
+                    pipe.close()
+                }
+                launch {
+                    returnCode = exeSimpleCommand(commands.last(), pipes.copy(programInput = pipe))
+                }
+            }
+            return returnCode
         } else {
-            //handle size of n pipeline
-            val pipeList = mutableListOf<Pipe>()
-            val waiting = mutableListOf<ExecutableResult>()
-            for ((index, command) in pipeline.commands.withIndex()) {
-                when (index) {
-                    0 -> {
-                        // handle the first command
-                        println("first element")
-                        val pipe = Pipe()
-                        pipeList.add(pipe)
-                        val pipes = this@Executor.pipes.copy(programOutput = pipe)
-                        val result = exeExternalProcess(
-                            name = command.name.value,
-                            arguments = command.arguments,
-                            pipes = pipes
-                        )
-                        waiting.add(result)
-                    }
-
-                    pipeline.commands.lastIndex -> {
-                        //handle the last element
-                        println("last element")
-                        val pipe = pipeList.last()
-                        val previous = waiting.last()
-                        val pipes = this@Executor.pipes.copy(programInput = pipe)
-                        coroutineScope {
+            coroutineScope {
+                val pipelist = mutableListOf<Channel<Int>>()
+                for ((index, command) in commands.withIndex()) {
+                    when (index) {
+                        0 -> {
+                            log("started first command")
+                            val pipe = Chan()
+                            pipelist.add(pipe)
                             launch {
-                                println("exe last element")
-                                waiting.add(
-                                    exeExternalProcess(
-                                        name = command.name.value,
-                                        arguments = command.arguments,
-                                        pipes = pipes
-                                    )
-                                )
-                            }
-                            launch {
-                                println("waiting for middle to finish")
-                                previous().also { results.add(it) }
-
-                                println("closing middle pipe")
-                                pipe.close()
+                                exeSimpleCommand(command, pipes.copy(programOutput = pipe))
+                                log("finished first command")
                             }
                         }
-                        println("waiting for final to finish")
-                        return@coroutineScope waiting.last()().also { results.add(it) }
-                    }
 
-                    else -> {
-                        //hand a middle element
+                        commands.lastIndex -> {
+                            yield()
+                            log("started last command")
+                            val previousPipe = pipelist.last()
+                            return@coroutineScope exeSimpleCommand(command, pipes.copy(programInput = previousPipe))
+                            previousPipe.close()
+                        }
 
-                        val pipe = pipeList.last()
-                        val previousResult = waiting.last()
-                        val nextPipe = Pipe()
-                        val pipes = this@Executor.pipes.copy(programInput = pipe, programOutput = nextPipe)
-                        pipeList.add(nextPipe)
-                        println("starting middle command")
-                        coroutineScope {
+                        else -> {
+                            // middle process
+                            log("started middle command")
+                            val previousPipe = pipelist.last()
+                            val pipe = Chan()
+                            pipelist.add(pipe)
                             launch {
-                                println("exe middle command")
-                                waiting.add(
-                                    exeExternalProcess(
-                                        name = command.name.value,
-                                        arguments = command.arguments,
-                                        pipes = pipes
-                                    )
+                                exeSimpleCommand(
+                                    command,
+                                    pipes.copy(programOutput = pipe, programInput = previousPipe)
                                 )
-                            }
-                            launch {
-                                println("waiting for previous to finish")
-                                previousResult().also { results.add(it) }
-                                pipe.close()
+                                log("finished middle command")
+                                previousPipe.close()
                             }
                         }
                     }
                 }
+                -9999 //should never get here
             }
-            0
         }
-
     }
 
-    private suspend fun exeSimpleCommand(
-        command: AST.SimpleCommand,
-        pipes: Pipes,
-        env: Map<String, String>,
-    ): ExecutableResult {
-
-        return exeExternalProcess(command.name.value, command.arguments, pipes)
-    }
-
-    private suspend fun exeExternalProcess(
-        name: String,
-        arguments: List<AST.Argument>,
-        pipes: Pipes,
-    ): ExecutableResult = coroutineScope {
-        val env = shellState.environment.value
-        val resolvedArguments: List<String> = arguments.map { arg ->
+    private suspend fun exeSimpleCommand(command: AST.SimpleCommand, pipes: Pipes = this.pipes): Int {
+        log("exe simple command: $command")
+        val executable = makeExecutable(command.name.value)
+        val resolvedArguments: List<String> = command.arguments.map { arg ->
             when (arg) {
-                is AST.Argument.CommandSubstitution -> exeSubCommand(arg)
-                is AST.Argument.VariableSubstitution -> env[arg.variableName] ?: ""
+                is AST.Argument.CommandSubstitution -> exeCommandSub(arg)
+                is AST.Argument.VariableSubstitution -> this.shellState.environment.value[arg.variableName] ?: ""
                 is AST.Argument.WordArgument -> arg.value
             }
         }
-        val executable = makeExecutable(name)
-        val finish = executable(name, resolvedArguments, pipes = pipes, env = env, cwd = cwd.value)
-        finish
+        return executable(
+            command.name.value,
+            resolvedArguments,
+            pipes,
+            shellState.environment.value,
+            cwd.value
+        )().also { results.add(it) }
     }
 
-    private suspend fun exeSubCommand(arg: AST.Argument.CommandSubstitution): String {
+    private suspend fun exeCommandSub(arg: AST.Argument.CommandSubstitution): String {
         val output = StringBuilder()
-        val pipes = Pipes(
-            programOutput = Pipe(),
-            programInput = Pipe()
-        )
-        pipes.programOutput?.connectTo(output.asOutputStream())
-        val executor = Executor(cwd, pipes = pipes, makeExecutable = this.makeExecutable, shellState = this.shellState)
+        val pipe = SupervisorChannel()
+        coroutineScope {
+            launch {
 
-        executor.execute(ast = arg.commandLine)
+                val executor =
+                    Executor(cwd, makeExecutable, shellState = shellState, pipes = Pipes(programOutput = pipe))
+                executor.execute(arg.commandLine)
+                pipe.superClose()
+            }
+            launch {
+                pipe.connectTo(output.asOutputStream())
+            }
+        }
         return output.toString().trim()
-    }
-
-
-    suspend fun exeAnd(command: AST.Command.And): Int {
-        val result: Int = exeCommand(command.left)
-        if (result == 0) {
-            return exeCommand(command.right)
-        }
-        return result
-    }
-}
-
-fun StringBuilder.asOutputStream(): OutputStream = object : OutputStream() {
-    override fun write(b: Int) {
-        append(b.toChar())
-    }
-}
-
-fun StringBuilder.asInputStream(): InputStream = object : InputStream() {
-    private var position = 0 // Tracks the current read position
-
-    override fun read(): Int {
-        // If the position is beyond the StringBuilder length, return -1 (end of stream)
-        if (position >= this@asInputStream.length) {
-            return -1
-        }
-        // Return the character at the current position as an integer and advance the position
-        return this@asInputStream[position++].code
-    }
-
-    override fun read(b: ByteArray, off: Int, len: Int): Int {
-        // If no more data, return -1 (end of stream)
-        if (position >= this@asInputStream.length) {
-            return -1
-        }
-
-        // Calculate how many bytes we can read
-        val bytesToRead = minOf(len, this@asInputStream.length - position)
-        for (i in 0 until bytesToRead) {
-            b[off + i] = this@asInputStream[position++].code.toByte()
-        }
-        return bytesToRead
     }
 }
