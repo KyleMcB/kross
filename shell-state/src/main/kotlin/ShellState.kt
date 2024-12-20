@@ -50,8 +50,11 @@ object ShellStateObject : ShellState {
     }
 
     override fun addHistory(command: String) {
-        _history.update {
-            it + command
+        scope.launch {
+            val validHistoryFile = _historyFile.filterNotNull().first()
+            _history.update {
+                it + command
+            }
         }
     }
 
@@ -67,7 +70,9 @@ object ShellStateObject : ShellState {
                 }
             }
             launch {
-                _history.drop(1).debounce(3.seconds).collect { newHistory ->
+                // the initial load is going to trigger this.
+                // so we ignore the first change to avoid a load/save infinite cycle
+                _history.drop(1).debounce(1.seconds).distinctUntilChanged().collect { newHistory ->
                     _historyFile.value?.let { file ->
                         saveHistory(file, newHistory)
                     }

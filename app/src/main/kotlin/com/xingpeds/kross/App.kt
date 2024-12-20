@@ -18,6 +18,7 @@ import com.xingpeds.kross.parser.Parser
 import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -27,7 +28,9 @@ import java.io.File
 
 fun main() = runBlocking {
     val state: ShellState = ShellStateObject
-    state.setHistoryFile(getHistoryFile())
+    launch {
+        state.setHistoryFile(getHistoryFile())
+    }
     val lua: Lua = LuaEngine
     val terminal = Terminal()
     val initFile = initFile()
