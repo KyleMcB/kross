@@ -13,6 +13,10 @@ plugins {
     // Apply the application plugin
     application
 }
+application {
+    applicationName = "kross"
+}
+
 
 repositories {
     // Use Maven Central for resolving dependencies.
