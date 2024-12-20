@@ -365,16 +365,20 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-//            programOutput = Chan(),
+            programOutput = Chan(),
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         val scope = CoroutineScope(Dispatchers.Default)
         scope.launch {
             launch {
                 executor.execute(ast)
+                pipes.programOutput?.close()
             }
-        }
-        TODO()
+            launch {
+                pipes.programOutput?.connectTo(output.asOutputStream())
+            }
+        }.join()
+        println(output)
     }
 
     @Test
@@ -405,17 +409,18 @@ class ExecutorTest {
                 )
             )
         )
-//        val executor = executorCwd()
+        val pipe = Chan()
+        val executor = Executor(cwd, processExecutable, pipes = Pipes(programOutput = pipe))
         val output = StringBuilder()
         CoroutineScope(Dispatchers.Default).launch {
-//            executor.execute(ast, streams = streams)
+            launch {
+                executor.execute(ast)
+            }
+            launch {
+                pipe.connectTo(output.asOutputStream())
+            }
         }.join()
-        // Note: Adjust expectedOutput according to the date format implementation
-//        val expectedOutput = /* Adjust expected output here if applicable */
-//        assertEquals(expectedOutput, output.toString().trim())
-        println(output.toString().trim())
-
-        TODO()
+        assertEquals(2, output.toString().count { it == ':' })
     }
 
 }

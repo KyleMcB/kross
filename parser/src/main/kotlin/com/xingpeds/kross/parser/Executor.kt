@@ -1,14 +1,14 @@
 package com.xingpeds.kross.parser
 
-import com.xingpeds.kross.entities.AST
-import com.xingpeds.kross.entities.Chan
-import com.xingpeds.kross.entities.Pipes
+import com.xingpeds.kross.entities.*
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import java.io.File
 
 private fun log(any: Any) = println("[Executor] $any")
@@ -71,7 +71,47 @@ class Executor(
             }
             return returnCode
         } else {
-            TODO()
+            coroutineScope {
+                val pipelist = mutableListOf<Channel<Int>>()
+                for ((index, command) in commands.withIndex()) {
+                    when (index) {
+                        0 -> {
+                            log("started first command")
+                            val pipe = Chan()
+                            pipelist.add(pipe)
+                            launch {
+                                exeSimpleCommand(command, pipes.copy(programOutput = pipe))
+                                log("finished first command")
+                            }
+                        }
+
+                        commands.lastIndex -> {
+                            yield()
+                            log("started last command")
+                            val previousPipe = pipelist.last()
+                            return@coroutineScope exeSimpleCommand(command, pipes.copy(programInput = previousPipe))
+                            previousPipe.close()
+                        }
+
+                        else -> {
+                            // middle process
+                            log("started middle command")
+                            val previousPipe = pipelist.last()
+                            val pipe = Chan()
+                            pipelist.add(pipe)
+                            launch {
+                                exeSimpleCommand(
+                                    command,
+                                    pipes.copy(programOutput = pipe, programInput = previousPipe)
+                                )
+                                log("finished middle command")
+                                previousPipe.close()
+                            }
+                        }
+                    }
+                }
+                -9999 //should never get here
+            }
         }
     }
 
@@ -80,7 +120,7 @@ class Executor(
         val executable = makeExecutable(command.name.value)
         val resolvedArguments: List<String> = command.arguments.map { arg ->
             when (arg) {
-                is AST.Argument.CommandSubstitution -> TODO()
+                is AST.Argument.CommandSubstitution -> exeCommandSub(arg)
                 is AST.Argument.VariableSubstitution -> this.shellState.environment.value[arg.variableName] ?: ""
                 is AST.Argument.WordArgument -> arg.value
             }
@@ -92,5 +132,23 @@ class Executor(
             shellState.environment.value,
             cwd.value
         )().also { results.add(it) }
+    }
+
+    private suspend fun exeCommandSub(arg: AST.Argument.CommandSubstitution): String {
+        val output = StringBuilder()
+        val pipe = SupervisorChannel()
+        coroutineScope {
+            launch {
+
+                val executor =
+                    Executor(cwd, makeExecutable, shellState = shellState, pipes = Pipes(programOutput = pipe))
+                executor.execute(arg.commandLine)
+                pipe.superClose()
+            }
+            launch {
+                pipe.connectTo(output.asOutputStream())
+            }
+        }
+        return output.toString().trim()
     }
 }
