@@ -40,13 +40,14 @@ dependencies {
     implementation(project(":builtins"))
     implementation(project(":entities"))
     implementation(libs.kotlinx.serialization.json)
-    implementation("com.github.ajalt.mordant:mordant:3.0.1")
-
-    // optional extensions for running animations with coroutines
-    implementation("com.github.ajalt.mordant:mordant-coroutines:3.0.1")
-
-    // optional widget for rendering Markdown
-    implementation("com.github.ajalt.mordant:mordant-markdown:3.0.1")
+    implementation("org.jline:jline:3.28.0")
+//    implementation("com.github.ajalt.mordant:mordant:3.0.1")
+//
+//    // optional extensions for running animations with coroutines
+//    implementation("com.github.ajalt.mordant:mordant-coroutines:3.0.1")
+//
+//    // optional widget for rendering Markdown
+//    implementation("com.github.ajalt.mordant:mordant-markdown:3.0.1")
 }
 
 // Apply a specific Java toolchain to ease working on different environments.

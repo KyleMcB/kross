@@ -13,9 +13,6 @@ interface ShellState {
     suspend fun changeDirectory(directory: File)
     val environment: StateFlow<Map<String, String>>
     suspend fun setVariable(name: String, value: String)
-    fun setHistoryFile(file: File)
-    fun addHistory(command: String)
-    val history: StateFlow<List<String>>
 
 }
 
@@ -45,18 +42,6 @@ object ShellStateObject : ShellState {
         }
     }
 
-    override fun setHistoryFile(file: File) {
-        _historyFile.value = file
-    }
-
-    override fun addHistory(command: String) {
-        scope.launch {
-            val validHistoryFile = _historyFile.filterNotNull().first()
-            _history.update {
-                it + command
-            }
-        }
-    }
 
     private val _historyFile = MutableStateFlow<File?>(null)
 
@@ -82,6 +67,4 @@ object ShellStateObject : ShellState {
     }
 
 
-    override val history: StateFlow<List<String>>
-        get() = _history
 }

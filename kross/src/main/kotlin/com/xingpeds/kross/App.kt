@@ -3,9 +3,7 @@
  */
 package com.xingpeds.kross
 
-import com.github.ajalt.mordant.terminal.Terminal
 import com.xingpeds.kross.builtins.BuiltInExecutable
-import com.xingpeds.kross.entities.json
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.executableLua.LuaExecutable
@@ -18,37 +16,43 @@ import com.xingpeds.kross.parser.Parser
 import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.encodeToStream
+import org.jline.reader.LineReader
+import org.jline.reader.LineReaderBuilder
+import org.jline.reader.impl.history.DefaultHistory
+import org.jline.terminal.Terminal
+import org.jline.terminal.TerminalBuilder
 import java.io.File
 
 
 fun main() = runBlocking {
     val state: ShellState = ShellStateObject
-    launch {
-        state.setHistoryFile(getHistoryFile())
-    }
     val lua: Lua = LuaEngine
-    val terminal = Terminal()
     val initFile = initFile()
     lua.executeFile(initFile)
+    val history = DefaultHistory()
+    val terminal: Terminal = TerminalBuilder.builder().system(true).build()
 
-    generateSequence {
-        print("input ")
-        terminal.readLineOrNull(false)
-    }
-        .filterNotNull()
-        .filter { it.isNotBlank() }
-        .takeWhile { it != "exit" }
-        .forEach {
+    // Create a line reader
+    val lineReader: LineReader = LineReaderBuilder.builder()
+        .terminal(terminal)
+        .history(history)
+        .build()
+    lineReader.variable(LineReader.HISTORY_FILE, getHistoryFile())
 
-            state.addHistory(it)
+    while (true) {
+        try {
+            // Prompt the user and read input
+            val line = lineReader.readLine("> ").trim()
+
+            // Check for exit condition
+            if (line.equals("exit", ignoreCase = true)) {
+                break
+            }
+
             try {
 
-                val lexer = Lexer(it)
+                val lexer = Lexer(line)
                 val parser = Parser()
                 val ast = parser.parse(lexer.tokens())
                 val makeExecutable: suspend (name: String) -> Executable = { name ->
@@ -67,23 +71,23 @@ fun main() = runBlocking {
 // this should be in debug mode only
                 println(e.stackTraceToString())
             }
+            // Print back what the user entered (or evaluate if needed)
+
+        } catch (e: Exception) {
+            terminal.writer().println("Error: ${e.message}")
         }
+    }
 }
 
 fun getHistoryFile(): File {
     // Get the path to the history file
-    val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history.json"
+    val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history"
     val historyFile = File(historyFilePath)
 
     // Ensure the parent directories and the file exist
     if (!historyFile.exists()) {
         historyFile.parentFile.mkdirs() // Create parent directories if they do not exist
         historyFile.createNewFile()    // Create the file if it does not exist
-        json.encodeToStream(
-            ListSerializer(String.serializer()),
-            listOf(),
-            historyFile.outputStream()
-        )
     }
 
     return historyFile
