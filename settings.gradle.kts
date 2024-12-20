@@ -11,7 +11,7 @@ plugins {
 }
 
 rootProject.name = "kross"
-include("app")
+include("kross")
 include("parser")
 include("luaScripting")
 include("shell-state")
