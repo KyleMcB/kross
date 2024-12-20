@@ -83,6 +83,7 @@ class ExecutorTest {
                 pipes.programOutput?.connectTo(output.asOutputStream())
             }
             executor.execute(ast)
+            log("closing pipes......")
             pipes.programInput?.close()
             pipes.programOutput?.close()
         }.join()
@@ -133,8 +134,9 @@ class ExecutorTest {
                 )
         )
         val output = StringBuilder()
+        val pipe = SupervisorChannel()
         val pipes = Pipes(
-            programOutput = Chan()
+            programOutput = pipe
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         CoroutineScope(Dispatchers.Default).launch {
@@ -143,7 +145,7 @@ class ExecutorTest {
             }
             launch {
                 executor.execute(ast)
-                pipes.programOutput?.close()
+                pipe.superClose()
             }
         }.join()
         assertEquals("hello\nworld\n", output.toString())
@@ -372,6 +374,7 @@ class ExecutorTest {
                 executor.execute(ast)
             }
         }
+        TODO()
     }
 
     @Test
@@ -412,6 +415,7 @@ class ExecutorTest {
 //        assertEquals(expectedOutput, output.toString().trim())
         println(output.toString().trim())
 
+        TODO()
     }
 
 }

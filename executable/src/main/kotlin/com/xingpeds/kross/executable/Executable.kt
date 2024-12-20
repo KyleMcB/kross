@@ -29,36 +29,35 @@ class JavaOSProcess : Executable {
         env: Map<String, String>,
         cwd: File
     ): ExecutableResult {
-        log("Starting JavaOSProcess.invoke with parameters: name=$name, args=$args, pipes=$pipes, env=$env, cwd=$cwd")
+        log("Starting JavaOSProcess.invoke with parameters: name=$name, args=$args, pipes=$pipes,  cwd=$cwd")
 
-        log("Setting up ProcessBuilder with command: ${listOf(name) + args}")
+        log("Setting up $name with command: ${listOf(name) + args}")
         val pb = ProcessBuilder(listOf(name) + args)
         pb.directory(cwd)
-        log("ProcessBuilder working directory set to: ${pb.directory()}")
+        log("$name working directory set to: ${pb.directory()}")
         pb.environment().clear()
-        log("ProcessBuilder environment cleared")
+        log("$name environment cleared")
         pb.environment().putAll(env)
-        log("ProcessBuilder environment updated with variables: $env")
         if (pipes.programInput != null) {
             pb.redirectInput(ProcessBuilder.Redirect.PIPE)
-            log("ProcessBuilder input redirected to PIPE")
+            log("$name input redirected to PIPE")
         } else {
             pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
-            log("ProcessBuilder input redirected to INHERIT")
+            log("$name input redirected to INHERIT")
         }
         if (pipes.programOutput != null) {
             pb.redirectOutput(ProcessBuilder.Redirect.PIPE)
-            log("ProcessBuilder output redirected to PIPE")
+            log("$name output redirected to PIPE")
         } else {
             pb.redirectOutput(ProcessBuilder.Redirect.INHERIT)
-            log("ProcessBuilder output redirected to INHERIT")
+            log("$name output redirected to INHERIT")
         }
         if (pipes.programError != null) {
             pb.redirectError(ProcessBuilder.Redirect.PIPE)
-            log("ProcessBuilder error redirected to PIPE")
+            log("$name error redirected to PIPE")
         } else {
             pb.redirectError(ProcessBuilder.Redirect.INHERIT)
-            log("ProcessBuilder error redirected to INHERIT")
+            log("$name error redirected to INHERIT")
         }
         val process = pb.start()
         log("Process started successfully")
@@ -67,28 +66,31 @@ class JavaOSProcess : Executable {
             launch {
                 if (programInput != null) {
                     programInput.connectTo(process.outputStream, autoClose = false)
-                    log("Program input successfully connected to process")
+                    log("$name input successfully connected to process")
                 }
             }
             launch {
                 val programOutput = pipes.programOutput
                 if (programOutput != null) {
                     programOutput.connectTo(process.inputStream, autoClose = false)
-                    log("Program output successfully connected to process")
+                    log("$name output successfully connected to process")
                 }
             }
             launch {
                 val programError = pipes.programError
                 if (programError != null) {
                     programError.connectTo(process.errorStream, autoClose = false)
-                    log("Program error successfully connected to process")
+                    log("$name error successfully connected to process")
                 }
             }
-        }
+        }.join()
         return {
             val exitCode = process.waitFor()
+            pipes.programInput?.close()
+            pipes.programOutput?.close()
+            pipes.programError?.close()
             process.destroy()
-            log("Process exited with code: $exitCode")
+            log("$name exited with code: $exitCode")
             exitCode
         }
     }
