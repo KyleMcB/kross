@@ -3,7 +3,6 @@
  */
 package com.xingpeds.kross
 
-import com.github.ajalt.mordant.terminal.Terminal
 import com.xingpeds.kross.builtins.BuiltInExecutable
 import com.xingpeds.kross.entities.json
 import com.xingpeds.kross.executable.Executable
@@ -23,6 +22,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.encodeToStream
+import org.jline.reader.LineReader
+import org.jline.reader.LineReaderBuilder
+import org.jline.terminal.Terminal
+import org.jline.terminal.TerminalBuilder
 import java.io.File
 
 
@@ -32,23 +35,31 @@ fun main() = runBlocking {
         state.setHistoryFile(getHistoryFile())
     }
     val lua: Lua = LuaEngine
-    val terminal = Terminal()
     val initFile = initFile()
     lua.executeFile(initFile)
+    val terminal: Terminal = TerminalBuilder.builder().system(true).build()
 
-    generateSequence {
-        print("input ")
-        terminal.readLineOrNull(false)
-    }
-        .filterNotNull()
-        .filter { it.isNotBlank() }
-        .takeWhile { it != "exit" }
-        .forEach {
+    // Create a line reader
+    val lineReader: LineReader = LineReaderBuilder.builder()
+        .terminal(terminal)
+        .build()
 
-            state.addHistory(it)
+    println("Welcome to the JLine REPL! Type 'exit' to quit.")
+    while (true) {
+        try {
+            // Prompt the user and read input
+            val line = lineReader.readLine("> ").trim()
+
+            // Check for exit condition
+            if (line.equals("exit", ignoreCase = true)) {
+                println("Goodbye!")
+                break
+            }
+
+            state.addHistory(line)
             try {
 
-                val lexer = Lexer(it)
+                val lexer = Lexer(line)
                 val parser = Parser()
                 val ast = parser.parse(lexer.tokens())
                 val makeExecutable: suspend (name: String) -> Executable = { name ->
@@ -67,7 +78,44 @@ fun main() = runBlocking {
 // this should be in debug mode only
                 println(e.stackTraceToString())
             }
+            // Print back what the user entered (or evaluate if needed)
+
+        } catch (e: Exception) {
+            terminal.writer().println("Error: ${e.message}")
         }
+    }
+//    generateSequence {
+//        print("input ")
+//        terminal.readLineOrNull(false)
+//    }
+//        .filterNotNull()
+//        .filter { it.isNotBlank() }
+//        .takeWhile { it != "exit" }
+//        .forEach {
+//
+//            state.addHistory(it)
+//            try {
+//
+//                val lexer = Lexer(it)
+//                val parser = Parser()
+//                val ast = parser.parse(lexer.tokens())
+//                val makeExecutable: suspend (name: String) -> Executable = { name ->
+//                    if (LuaEngine.userFuncExists(name)) {
+//                        LuaExecutable()
+//                    } else if (Builtin.builtinFuns.containsKey(name)) {
+//                        BuiltInExecutable(Builtin.builtinFuns[name]!!)
+//                    } else {
+//                        JavaOSProcess()
+//                    }
+//                }
+//                val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
+//                executor.execute(ast)
+//            } catch (e: Exception) {
+//                println("failed to run command: ${e.message}")
+//// this should be in debug mode only
+//                println(e.stackTraceToString())
+//            }
+//        }
 }
 
 fun getHistoryFile(): File {
