@@ -4,7 +4,6 @@
 package com.xingpeds.kross
 
 import com.xingpeds.kross.builtins.BuiltInExecutable
-import com.xingpeds.kross.entities.json
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.executableLua.LuaExecutable
@@ -17,13 +16,10 @@ import com.xingpeds.kross.parser.Parser
 import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.encodeToStream
 import org.jline.reader.LineReader
 import org.jline.reader.LineReaderBuilder
+import org.jline.reader.impl.history.DefaultHistory
 import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
 import java.io.File
@@ -31,20 +27,19 @@ import java.io.File
 
 fun main() = runBlocking {
     val state: ShellState = ShellStateObject
-    launch {
-        state.setHistoryFile(getHistoryFile())
-    }
     val lua: Lua = LuaEngine
     val initFile = initFile()
     lua.executeFile(initFile)
+    val history = DefaultHistory()
     val terminal: Terminal = TerminalBuilder.builder().system(true).build()
 
     // Create a line reader
     val lineReader: LineReader = LineReaderBuilder.builder()
         .terminal(terminal)
+        .history(history)
         .build()
+    lineReader.variable(LineReader.HISTORY_FILE, getHistoryFile())
 
-    println("Welcome to the JLine REPL! Type 'exit' to quit.")
     while (true) {
         try {
             // Prompt the user and read input
@@ -52,11 +47,9 @@ fun main() = runBlocking {
 
             // Check for exit condition
             if (line.equals("exit", ignoreCase = true)) {
-                println("Goodbye!")
                 break
             }
 
-            state.addHistory(line)
             try {
 
                 val lexer = Lexer(line)
@@ -84,54 +77,17 @@ fun main() = runBlocking {
             terminal.writer().println("Error: ${e.message}")
         }
     }
-//    generateSequence {
-//        print("input ")
-//        terminal.readLineOrNull(false)
-//    }
-//        .filterNotNull()
-//        .filter { it.isNotBlank() }
-//        .takeWhile { it != "exit" }
-//        .forEach {
-//
-//            state.addHistory(it)
-//            try {
-//
-//                val lexer = Lexer(it)
-//                val parser = Parser()
-//                val ast = parser.parse(lexer.tokens())
-//                val makeExecutable: suspend (name: String) -> Executable = { name ->
-//                    if (LuaEngine.userFuncExists(name)) {
-//                        LuaExecutable()
-//                    } else if (Builtin.builtinFuns.containsKey(name)) {
-//                        BuiltInExecutable(Builtin.builtinFuns[name]!!)
-//                    } else {
-//                        JavaOSProcess()
-//                    }
-//                }
-//                val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
-//                executor.execute(ast)
-//            } catch (e: Exception) {
-//                println("failed to run command: ${e.message}")
-//// this should be in debug mode only
-//                println(e.stackTraceToString())
-//            }
-//        }
 }
 
 fun getHistoryFile(): File {
     // Get the path to the history file
-    val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history.json"
+    val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history"
     val historyFile = File(historyFilePath)
 
     // Ensure the parent directories and the file exist
     if (!historyFile.exists()) {
         historyFile.parentFile.mkdirs() // Create parent directories if they do not exist
         historyFile.createNewFile()    // Create the file if it does not exist
-        json.encodeToStream(
-            ListSerializer(String.serializer()),
-            listOf(),
-            historyFile.outputStream()
-        )
     }
 
     return historyFile

@@ -34,13 +34,8 @@ object Builtin {
             -1
         }
     }
-    val history: BuiltinFun = { args: List<String> ->
-        ShellStateObject.history.value.forEach { println(it) }
-        0
-    }
     val builtinFuns: Map<String, BuiltinFun> = mapOf(
         "cd" to cd,
         "setenv" to setenv,
-        "history" to history,
     )
 }
