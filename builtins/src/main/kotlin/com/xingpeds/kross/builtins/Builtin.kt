@@ -1,8 +1,8 @@
 package com.xingpeds.kross.builtins
 
+import com.xingpeds.kross.entities.Pipes
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.ExecutableResult
-import com.xingpeds.kross.executable.Pipes
 import java.io.File
 
 typealias BuiltinFun = suspend (args: List<String>) -> Int

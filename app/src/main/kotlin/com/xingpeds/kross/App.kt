@@ -18,10 +18,12 @@ import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.runBlocking
+import java.io.File
 
 
 fun main() = runBlocking {
     val state: ShellState = ShellStateObject
+    state.setHistoryFile(getHistoryFile())
     val lua: Lua = LuaEngine
     val terminal = Terminal()
     val initFile = initFile()
@@ -36,6 +38,7 @@ fun main() = runBlocking {
         .takeWhile { it != "exit" }
         .forEach {
 
+            state.addHistory(it)
             try {
 
                 val lexer = Lexer(it)
@@ -58,4 +61,18 @@ fun main() = runBlocking {
                 println(e.stackTraceToString())
             }
         }
+}
+
+fun getHistoryFile(): File {
+    // Get the path to the history file
+    val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history.json"
+    val historyFile = File(historyFilePath)
+
+    // Ensure the parent directories and the file exist
+    if (!historyFile.exists()) {
+        historyFile.parentFile.mkdirs() // Create parent directories if they do not exist
+        historyFile.createNewFile()    // Create the file if it does not exist
+    }
+
+    return historyFile
 }

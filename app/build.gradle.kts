@@ -34,6 +34,7 @@ dependencies {
     implementation(project(":executable"))
     implementation(project(":executable-lua"))
     implementation(project(":builtins"))
+    implementation(project(":entities"))
     implementation(libs.kotlinx.serialization.json)
     implementation("com.github.ajalt.mordant:mordant:3.0.1")
 

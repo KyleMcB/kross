@@ -7,7 +7,7 @@ import org.luaj.vm2.io.LuaWriter
 import java.io.InputStream
 import java.io.OutputStream
 
-private fun log(any: Any) = println("IO: $any")
+private fun log(any: Any) = Unit//println("IO: $any")
 
 fun Chan() = Channel<Int>(16) { num -> log("UNSENT $num") }
 
