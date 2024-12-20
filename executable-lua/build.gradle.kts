@@ -13,6 +13,7 @@ java {
     }
 }
 dependencies {
+    implementation(project(":entities"))
     implementation("com.soywiz.korlibs.luak:luak:3.4.0")
     implementation(project(":luaScripting"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")

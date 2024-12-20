@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import java.io.File
 
-private fun log(any: Any) = println("[Executor] $any")
+private fun log(any: Any) = Unit//println("[Executor] $any")
 
 class Executor(
     private val cwd: StateFlow<File>,

@@ -8,7 +8,7 @@ import java.io.File
 
 typealias ExecutableResult = suspend () -> Int
 
-private fun log(any: Any?) = println("Executable: $any")
+private fun log(any: Any) = Unit// println("Executable: $any")
 interface Executable {
 
     suspend operator fun invoke(
