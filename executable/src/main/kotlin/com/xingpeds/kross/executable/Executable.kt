@@ -1,6 +1,7 @@
 package com.xingpeds.kross.executable
 
-import kotlinx.coroutines.channels.Channel
+import com.xingpeds.kross.entities.Pipes
+import com.xingpeds.kross.entities.connectTo
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
@@ -8,12 +9,6 @@ import java.io.File
 typealias ExecutableResult = suspend () -> Int
 
 private fun log(any: Any?) = println("Executable: $any")
-data class Pipes(
-    val programInput: Channel<Int>? = null,
-    val programOutput: Channel<Int>? = null,
-    val programError: Channel<Int>? = null,
-)
-
 interface Executable {
 
     suspend operator fun invoke(
@@ -73,23 +68,22 @@ class JavaOSProcess : Executable {
                 log("Launched coroutine to handle program input")
                 if (programInput != null) {
                     programInput.connectTo(process.outputStream)
-                    process.outputStream.close()
                     log("Program input successfully connected to process")
                 }
             }
             launch {
+                val programOutput = pipes.programOutput
                 log("Launched coroutine to handle program output")
-                if (pipes.programOutput != null) {
-                    pipes.programOutput.connectTo(process.inputStream)
-                    process.inputStream.close()
+                if (programOutput != null) {
+                    programOutput.connectTo(process.inputStream)
                     log("Program output successfully connected to process")
                 }
             }
             launch {
+                val programError = pipes.programError
                 log("Launched coroutine to handle program error")
-                if (pipes.programError != null) {
-                    pipes.programError.connectTo(process.errorStream)
-                    process.errorStream.close()
+                if (programError != null) {
+                    programError.connectTo(process.errorStream)
                     log("Program error successfully connected to process")
                 }
             }
@@ -101,16 +95,4 @@ class JavaOSProcess : Executable {
         }
     }
 
-}
-
-fun StringBuilder.asOutputStream(): java.io.OutputStream {
-    return object : java.io.OutputStream() {
-        override fun write(b: Int) {
-            append(b.toChar())
-        }
-
-        override fun write(b: ByteArray, off: Int, len: Int) {
-            append(String(b, off, len))
-        }
-    }
 }

@@ -1,7 +1,8 @@
 package com.xingpeds.kross.parser
 
+import com.xingpeds.kross.entities.AST
+import com.xingpeds.kross.entities.Pipes
 import com.xingpeds.kross.executable.Executable
-import com.xingpeds.kross.executable.Pipes
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.flow.StateFlow
@@ -17,4 +18,8 @@ class Executor(
     private val shellState: ShellState = ShellStateObject
 ) {
 
+    suspend fun execute(ast: AST.Program): List<Int> {
+
+        TODO()
+    }
 }

@@ -1,10 +1,8 @@
 package com.xingpeds.kross.parser
 
-import com.xingpeds.kross.entities.AST
+import com.xingpeds.kross.entities.*
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
-import com.xingpeds.kross.executable.Pipes
-import com.xingpeds.kross.executable.connectTo
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +36,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-            programOutput = Pipe()
+            programOutput = Chan()
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         CoroutineScope(Dispatchers.Default).launch {
@@ -72,8 +70,8 @@ class ExecutorTest {
         val output = StringBuilder()
         val input = "hello world".byteInputStream()
         val pipes = Pipes(
-            programInput = Pipe(),
-            programOutput = Pipe()
+            programInput = Chan(),
+            programOutput = Chan()
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         CoroutineScope(Dispatchers.Default).launch {
@@ -106,7 +104,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-            programOutput = Pipe()
+            programOutput = Chan()
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         CoroutineScope(Dispatchers.Default).launch {
@@ -251,7 +249,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-            programOutput = Pipe()
+            programOutput = Chan()
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         CoroutineScope(Dispatchers.Default).launch {
@@ -287,7 +285,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-            programOutput = Pipe(),
+            programOutput = Chan(),
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         val scope = CoroutineScope(Dispatchers.Default)
@@ -323,7 +321,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-            programOutput = Pipe(),
+            programOutput = Chan(),
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         val scope = CoroutineScope(Dispatchers.Default)
@@ -340,7 +338,7 @@ class ExecutorTest {
     }
 
     @Test
-    fun grepPipe() = runTest(timeout = 10.seconds) {
+    fun grepChan() = runTest(timeout = 10.seconds) {
         val ast = AST.Program(
             commands = listOf(
                 AST.Command.Pipeline(
@@ -360,7 +358,7 @@ class ExecutorTest {
         )
         val output = StringBuilder()
         val pipes = Pipes(
-//            programOutput = Pipe(),
+//            programOutput = Chan(),
         )
         val executor = Executor(cwd, processExecutable, pipes = pipes)
         val scope = CoroutineScope(Dispatchers.Default)
@@ -401,7 +399,6 @@ class ExecutorTest {
         )
 //        val executor = executorCwd()
         val output = StringBuilder()
-        val streams = Executor.Streams(outputStream = output.asOutputStream())
         CoroutineScope(Dispatchers.Default).launch {
 //            executor.execute(ast, streams = streams)
         }.join()

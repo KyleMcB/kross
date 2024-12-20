@@ -80,3 +80,10 @@ fun StringBuilder.asOutputStream(): OutputStream = object : OutputStream() {
         append(b.toChar())
     }
 }
+
+data class Pipes(
+    val programInput: Channel<Int>? = null,
+    val programOutput: Channel<Int>? = null,
+    val programError: Channel<Int>? = null,
+)
+
