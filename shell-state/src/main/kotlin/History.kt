@@ -1,7 +1,7 @@
 package com.xingpeds.kross.state
 
+import com.xingpeds.kross.entities.json
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
 import java.io.File
@@ -19,7 +19,7 @@ fun loadHistory(file: File): UserCommandHistory {
     return try {
         val fileContent = file.readText() // Read file contents as a string
 //        Json.decodeFromString<UserCommandHistory>(fileContent) // Deserialize JSON into UserCommandHistory
-        Json.decodeFromStream<UserCommandHistory>(file.inputStream())
+        json.decodeFromStream<UserCommandHistory>(file.inputStream())
     } catch (e: Exception) {
         val renamedFile = File(file.parent, "invalid_${file.name}") // Prepend "invalid_" to the file name
         println("Error: invalid json file: ${file.absolutePath}, moved to ${renamedFile.absolutePath} and starting a new one")
@@ -36,5 +36,5 @@ fun saveHistory(file: File, history: UserCommandHistory) {
     require(file.canRead())
     //wipe file
 
-    Json.encodeToStream(history, file.outputStream())
+    json.encodeToStream(history, file.outputStream())
 }

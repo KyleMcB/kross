@@ -5,6 +5,7 @@ package com.xingpeds.kross
 
 import com.github.ajalt.mordant.terminal.Terminal
 import com.xingpeds.kross.builtins.BuiltInExecutable
+import com.xingpeds.kross.entities.json
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.executableLua.LuaExecutable
@@ -18,6 +19,9 @@ import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.encodeToStream
 import java.io.File
 
 
@@ -72,6 +76,11 @@ fun getHistoryFile(): File {
     if (!historyFile.exists()) {
         historyFile.parentFile.mkdirs() // Create parent directories if they do not exist
         historyFile.createNewFile()    // Create the file if it does not exist
+        json.encodeToStream(
+            ListSerializer(String.serializer()),
+            listOf(),
+            historyFile.outputStream()
+        )
     }
 
     return historyFile
