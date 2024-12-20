@@ -65,31 +65,29 @@ class JavaOSProcess : Executable {
         coroutineScope {
             val programInput = pipes.programInput
             launch {
-                log("Launched coroutine to handle program input")
                 if (programInput != null) {
-                    programInput.connectTo(process.outputStream)
+                    programInput.connectTo(process.outputStream, autoClose = false)
                     log("Program input successfully connected to process")
                 }
             }
             launch {
                 val programOutput = pipes.programOutput
-                log("Launched coroutine to handle program output")
                 if (programOutput != null) {
-                    programOutput.connectTo(process.inputStream)
+                    programOutput.connectTo(process.inputStream, autoClose = false)
                     log("Program output successfully connected to process")
                 }
             }
             launch {
                 val programError = pipes.programError
-                log("Launched coroutine to handle program error")
                 if (programError != null) {
-                    programError.connectTo(process.errorStream)
+                    programError.connectTo(process.errorStream, autoClose = false)
                     log("Program error successfully connected to process")
                 }
             }
         }
         return {
             val exitCode = process.waitFor()
+            process.destroy()
             log("Process exited with code: $exitCode")
             exitCode
         }

@@ -9,10 +9,15 @@ import org.luaj.vm2.io.LuaWriter
 import java.io.InputStream
 import java.io.OutputStream
 
-private fun log(any: Any) = Unit
+private fun log(any: Any) = println("IO: $any")
 
-fun Chan() = Channel<Int>(16) { num ->
-    System.err.println("Error: Channel not sent $num")
+fun Chan() = Pipe()
+
+class Pipe(private val channel: Channel<Int> = Channel(16)) : Channel<Int> by channel {
+
+    override fun close(cause: Throwable?): Boolean {
+        return channel.close(cause)
+    }
 }
 
 suspend fun Channel<Int>.connectTo(output: OutputStream, autoClose: Boolean = true) {
@@ -20,7 +25,12 @@ suspend fun Channel<Int>.connectTo(output: OutputStream, autoClose: Boolean = tr
     withContext(Dispatchers.IO) {
         output.use {
             for (byte in this@connectTo) {
+                // this won't stop until the channel is closed
+                log("writing $byte")
                 output.write(byte)
+                if (byte == -1) {
+                    break
+                }
             }
         }
         if (autoClose) channel.close().also { log("channel closed after writing") }
@@ -65,7 +75,7 @@ suspend fun Channel<Int>.connectTo(input: InputStream, autoClose: Boolean = true
             while (channel.isClosedForSend.not()) {
                 val byte = input.read()
                 if (byte == -1) {
-                    channel.close()
+                    if (autoClose) channel.close()
                     break
                 }
                 channel.send(byte)
