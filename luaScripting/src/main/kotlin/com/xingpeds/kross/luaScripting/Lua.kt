@@ -51,6 +51,14 @@ fun adapter(builtin: BuiltinFun): LuaFunction = object : VarArgFunction() {
     }
 }
 
+fun LuaValue.key(name: String): LuaValue? = try {
+    get(name)
+} catch (e: Exception) {
+    null
+}
+
+operator fun LuaValue.get(name: String): LuaValue? = key(name)
+
 object LuaEngine : Lua {
     val _userFunctions = MutableStateFlow<Map<String, LuaFunction>>(emptyMap())
     val userTable = LuaValue.tableOf()

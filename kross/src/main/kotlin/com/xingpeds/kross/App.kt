@@ -10,6 +10,7 @@ import com.xingpeds.kross.executableLua.LuaExecutable
 import com.xingpeds.kross.luaScripting.Lua
 import com.xingpeds.kross.luaScripting.LuaEngine
 import com.xingpeds.kross.luaScripting.executeFile
+import com.xingpeds.kross.luaScripting.key
 import com.xingpeds.kross.parser.Executor
 import com.xingpeds.kross.parser.Lexer
 import com.xingpeds.kross.parser.Parser
@@ -22,8 +23,15 @@ import org.jline.reader.LineReaderBuilder
 import org.jline.reader.impl.history.DefaultHistory
 import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
+import org.luaj.vm2.LuaFunction
+import org.luaj.vm2.LuaValue
 import java.io.File
 
+fun LuaValue.funcOrNull(): LuaFunction? = try {
+    this.checkfunction()
+} catch (e: Exception) {
+    null
+}
 
 fun main() = runBlocking {
     val state: ShellState = ShellStateObject
@@ -43,7 +51,15 @@ fun main() = runBlocking {
     while (true) {
         try {
             // Prompt the user and read input
-            val line = lineReader.readLine("> ").trim()
+            val username = System.getProperty("user.name")
+            val userhome: String = System.getProperty("user.home")
+            val cwd: String = ShellStateObject.currentDirectory.value.absolutePath.replace(userhome, "~")
+            var prompt = "$username $cwd> "
+            val promptfunc = LuaEngine.global.key("kross")?.key("handles")?.key("prompt")?.checkfunction()
+            if (promptfunc != null) {
+                prompt = promptfunc.call().tojstring()
+            }
+            val line = lineReader.readLine(prompt).trim()
 
             // Check for exit condition
             if (line.equals("exit", ignoreCase = true)) {
