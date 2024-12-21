@@ -48,6 +48,7 @@ dependencies {
 //
 //    // optional widget for rendering Markdown
 //    implementation("com.github.ajalt.mordant:mordant-markdown:3.0.1")
+    testImplementation(kotlin("test"))
 }
 
 // Apply a specific Java toolchain to ease working on different environments.

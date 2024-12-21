@@ -17,13 +17,12 @@ import com.xingpeds.kross.parser.Parser
 import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
-import org.jline.builtins.Completers.FileNameCompleter
-import org.jline.reader.*
+import org.jline.reader.LineReader
+import org.jline.reader.LineReaderBuilder
 import org.jline.reader.impl.history.DefaultHistory
 import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
@@ -43,35 +42,21 @@ fun LuaValue.toNullable(): LuaValue? {
     return if (this.isnil()) null else this
 }
 
-class ShellCompleter(private val cwd: StateFlow<File>) : Completer {
-
-    private val dirComp: Flow<Completer> = cwd.map {
-//        DirectoriesCompleter(it)
-        FileNameCompleter().apply {
-        }
-    }
-
-    override fun complete(p0: LineReader?, p1: ParsedLine?, p2: MutableList<Candidate>?) {
-        runBlocking {
-            val comp = dirComp.first()
-            comp.complete(p0, p1, p2)
-        }
-    }
-
-}
-
 
 fun main() = runBlocking {
+    val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
     val lua: Lua = LuaEngine
     val initFile = initFile()
     lua.executeFile(initFile)
     val history = DefaultHistory()
     val terminal: Terminal = TerminalBuilder.builder().system(true).build()
-    val hi = FileNameCompleter()
     // Create a line reader
+    val commandCompleter = CommandCompleter(lua)
+    val cwdCompleter = CurrentDirectoryCompleter(ShellStateObject.currentDirectory, scope)
+    val shellCompleter = ShellCompleter(commandCompleter, cwdCompleter)
     val lineReader: LineReader = LineReaderBuilder.builder()
-        .completer(ShellCompleter(ShellStateObject.currentDirectory))
+        .completer(shellCompleter)
         .terminal(terminal)
         .history(history)
         .build()
@@ -126,6 +111,7 @@ fun main() = runBlocking {
             terminal.writer().println("Error: ${e.message}")
         }
     }
+    scope.cancel()
 }
 
 fun getHistoryFile(): File {
