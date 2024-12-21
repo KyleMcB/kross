@@ -24,41 +24,15 @@ jobs:
           ./gradlew test
           ./gradlew assemble
 
-      - name: Debug Build Artifacts
-        run: ls -alh kross/build/distributions || echo "No files found"
-
-
-      - name: Delete Existing Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        run: |
-          existing_release=$(gh release view develop-latest --json id --jq '.id' || echo "")
-          if [ -n "$existing_release" ]; then
-            echo "Deleting existing release..."
-            gh release delete develop-latest --yes
-          fi
-          existing_tag=$(git tag -l develop-latest || echo "")
-          if [ -n "$existing_tag" ]; then
-            echo "Deleting existing tag..."
-            git tag -d develop-latest
-            git push origin :refs/tags/develop-latest
-          fi
-
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      - name: Create or Update GitHub Release
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: develop-latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: develop-latest
           release_name: "Develop Build"
+          body: "This is the latest build for the develop branch."
           draft: false
           prerelease: true
-
-      - name: Upload Artifact to Release
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: kross/build/distributions/kross.zip
-          asset_name: develop-latest.zip
-          asset_content_type: application/zip
+          artifacts: kross/build/distributions/*.zip
+          artifact_name: develop-latest.zip
+          overwrite: true
