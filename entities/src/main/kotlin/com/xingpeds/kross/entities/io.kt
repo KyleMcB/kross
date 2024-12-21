@@ -11,12 +11,6 @@ private fun log(any: Any) = Unit//println("IO: $any")
 
 fun Chan() = Channel<Int>(16) { num -> log("UNSENT $num") }
 
-class Pipe(private val channel: Channel<Int> = Channel(16)) : Channel<Int> by channel {
-
-    override fun close(cause: Throwable?): Boolean {
-        return channel.close(cause)
-    }
-}
 
 class SupervisorChannel(private val channel: Channel<Int> = Channel(16)) : Channel<Int> by channel {
     override fun close(cause: Throwable?): Boolean = false
