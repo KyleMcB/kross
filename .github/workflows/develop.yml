@@ -24,6 +24,10 @@ jobs:
           ./gradlew test
           ./gradlew assemble
 
+      - name: Debug Build Artifacts
+        run: ls -alh kross/build/distributions || echo "No files found"
+
+
       - name: Delete Existing Release
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
