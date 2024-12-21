@@ -18,6 +18,7 @@ import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.runBlocking
+import org.jline.builtins.Completers.DirectoriesCompleter
 import org.jline.reader.LineReader
 import org.jline.reader.LineReaderBuilder
 import org.jline.reader.impl.history.DefaultHistory
@@ -33,6 +34,11 @@ fun LuaValue.funcOrNull(): LuaFunction? = try {
     null
 }
 
+fun LuaValue.toNullable(): LuaValue? {
+    return if (this.isnil()) null else this
+}
+
+
 fun main() = runBlocking {
     val state: ShellState = ShellStateObject
     val lua: Lua = LuaEngine
@@ -43,11 +49,11 @@ fun main() = runBlocking {
 
     // Create a line reader
     val lineReader: LineReader = LineReaderBuilder.builder()
+        .completer(DirectoriesCompleter(state.currentDirectory.value))
         .terminal(terminal)
         .history(history)
         .build()
     lineReader.variable(LineReader.HISTORY_FILE, getHistoryFile())
-
     while (true) {
         try {
             // Prompt the user and read input
@@ -55,7 +61,7 @@ fun main() = runBlocking {
             val userhome: String = System.getProperty("user.home")
             val cwd: String = ShellStateObject.currentDirectory.value.absolutePath.replace(userhome, "~")
             var prompt = "$username $cwd> "
-            val promptfunc = LuaEngine.global.key("kross")?.key("handles")?.key("prompt")?.checkfunction()
+            val promptfunc = LuaEngine.global.key("kross")?.key("handles")?.key("prompt")?.funcOrNull()
             if (promptfunc != null) {
                 prompt = promptfunc.call().tojstring()
             }
