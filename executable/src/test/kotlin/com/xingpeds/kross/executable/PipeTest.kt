@@ -1,5 +1,9 @@
 package com.xingpeds.kross.executable
 
+import com.xingpeds.kross.entities.Chan
+import com.xingpeds.kross.entities.asLuaWriter
+import com.xingpeds.kross.entities.asOutputStream
+import com.xingpeds.kross.entities.connectTo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -12,15 +16,15 @@ import kotlin.time.Duration.Companion.seconds
 class PipeTest {
     @Test
     fun simpleLuaWriter() = runTest(timeout = 5.seconds) {
-        val pipe = Pipe()
+        val pipe = Chan()
         println("Starting test: simpleLuaWriter")
-        val luaWriter = pipe.luaWriter()
+        val luaWriter = pipe.asLuaWriter()
         println("yay")
     }
 
     @Test
     fun one() = runTest(timeout = 10.seconds) {
-        val pipe = Pipe()
+        val pipe = Chan()
         val output = StringBuilder()
         val scope = CoroutineScope(Dispatchers.Default)
         scope.launch {
@@ -44,7 +48,7 @@ class PipeTest {
     fun connectToInputStream() = runTest(timeout = 10.seconds) {
         println("Starting test: connectToInputStream")
 
-        val pipe = Pipe()
+        val pipe = Chan()
         val output = StringBuilder()
 
         val externalInput = "This is data from external InputStream"
@@ -72,7 +76,7 @@ class PipeTest {
     fun connectInputToOutput() = runTest(timeout = 10.seconds) {
         println("Starting test: connectInputToOutput")
 
-        val pipe = Pipe()
+        val pipe = Chan()
         val externalInput = "This is a round trip"
         val externalOutput = StringBuilder()
 

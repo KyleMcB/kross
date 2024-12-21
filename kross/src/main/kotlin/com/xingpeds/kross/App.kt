@@ -17,21 +17,49 @@ import com.xingpeds.kross.parser.Parser
 import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
-import org.jline.reader.LineReader
-import org.jline.reader.LineReaderBuilder
+import org.jline.builtins.Completers.FileNameCompleter
+import org.jline.reader.*
 import org.jline.reader.impl.history.DefaultHistory
 import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
+import org.jline.widget.AutosuggestionWidgets
 import org.luaj.vm2.LuaFunction
 import org.luaj.vm2.LuaValue
 import java.io.File
+
 
 fun LuaValue.funcOrNull(): LuaFunction? = try {
     this.checkfunction()
 } catch (e: Exception) {
     null
 }
+
+fun LuaValue.toNullable(): LuaValue? {
+    return if (this.isnil()) null else this
+}
+
+class ShellCompleter(private val cwd: StateFlow<File>) : Completer {
+
+    private val dirComp: Flow<Completer> = cwd.map {
+//        DirectoriesCompleter(it)
+        FileNameCompleter().apply {
+        }
+    }
+
+    override fun complete(p0: LineReader?, p1: ParsedLine?, p2: MutableList<Candidate>?) {
+        runBlocking {
+            val comp = dirComp.first()
+            comp.complete(p0, p1, p2)
+        }
+    }
+
+}
+
 
 fun main() = runBlocking {
     val state: ShellState = ShellStateObject
@@ -40,14 +68,18 @@ fun main() = runBlocking {
     lua.executeFile(initFile)
     val history = DefaultHistory()
     val terminal: Terminal = TerminalBuilder.builder().system(true).build()
-
+    val hi = FileNameCompleter()
     // Create a line reader
     val lineReader: LineReader = LineReaderBuilder.builder()
+        .completer(ShellCompleter(ShellStateObject.currentDirectory))
         .terminal(terminal)
         .history(history)
         .build()
-    lineReader.variable(LineReader.HISTORY_FILE, getHistoryFile())
+    val autosuggestionWidgets = AutosuggestionWidgets(lineReader)
 
+// Enable autosuggestions
+    autosuggestionWidgets.enable()
+    lineReader.variable(LineReader.HISTORY_FILE, getHistoryFile())
     while (true) {
         try {
             // Prompt the user and read input
@@ -55,7 +87,7 @@ fun main() = runBlocking {
             val userhome: String = System.getProperty("user.home")
             val cwd: String = ShellStateObject.currentDirectory.value.absolutePath.replace(userhome, "~")
             var prompt = "$username $cwd> "
-            val promptfunc = LuaEngine.global.key("kross")?.key("handles")?.key("prompt")?.checkfunction()
+            val promptfunc = LuaEngine.global.key("kross")?.key("handles")?.key("prompt")?.funcOrNull()
             if (promptfunc != null) {
                 prompt = promptfunc.call().tojstring()
             }
