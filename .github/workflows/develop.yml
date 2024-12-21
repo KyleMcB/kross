@@ -27,12 +27,13 @@ jobs:
       - name: Create or Update GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           tag: develop-latest
-          release_name: "Develop Build"
+          name: "Develop Build" # Correct input for release name
           body: "This is the latest build for the develop branch."
           draft: false
           prerelease: true
           artifacts: kross/build/distributions/*.zip
-          artifact_name: develop-latest.zip
-          overwrite: true
+          replacesArtifacts: true # Removes existing artifacts before uploading new ones
+          removeArtifacts: true # Ensures the release is updated with fresh artifacts
+          allowUpdates: true # Allows updating the existing release
