@@ -1,5 +1,9 @@
 package com.xingpeds.kross.executable
 
+import com.xingpeds.kross.entities.Chan
+import com.xingpeds.kross.entities.Pipes
+import com.xingpeds.kross.entities.asOutputStream
+import com.xingpeds.kross.entities.connectTo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,7 +26,7 @@ class JavaOSProcessTest {
     @Test
     fun two() = runTest(timeout = 5.seconds) {
         val subject = JavaOSProcess()
-        val outputPipe = Pipe()
+        val outputPipe = Chan()
         val output = StringBuilder()
         CoroutineScope(Dispatchers.Default).launch {
             launch {
@@ -49,8 +53,8 @@ class JavaOSProcessTest {
     fun three() = runTest(timeout = 5.seconds) {
         val subject = JavaOSProcess()
         val result = StringBuilder()
-        val outputPipe = Pipe()
-        val inputPipe = Pipe()
+        val outputPipe = Chan()
+        val inputPipe = Chan()
         val programInput = "fake input"
         CoroutineScope(Dispatchers.Default).launch {
             launch {
