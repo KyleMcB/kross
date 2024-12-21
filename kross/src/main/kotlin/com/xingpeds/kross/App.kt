@@ -60,6 +60,7 @@ fun main() = runBlocking {
                 prompt = promptfunc.call().tojstring()
             }
             val line = lineReader.readLine(prompt).trim()
+            if (line.isBlank()) continue
 
             // Check for exit condition
             if (line.equals("exit", ignoreCase = true)) {
