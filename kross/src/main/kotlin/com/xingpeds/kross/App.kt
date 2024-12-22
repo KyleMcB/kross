@@ -21,12 +21,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import org.jline.keymap.KeyMap.alt
+import org.jline.keymap.KeyMap.ctrl
 import org.jline.reader.LineReader
 import org.jline.reader.LineReaderBuilder
+import org.jline.reader.Reference
+import org.jline.reader.Widget
 import org.jline.reader.impl.history.DefaultHistory
 import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
 import org.jline.widget.AutosuggestionWidgets
+import org.jline.widget.Widgets
 import org.luaj.vm2.LuaFunction
 import org.luaj.vm2.LuaValue
 import java.io.File
@@ -42,6 +47,33 @@ fun LuaValue.toNullable(): LuaValue? {
     return if (this.isnil()) null else this
 }
 
+class MyWidgets(reader: LineReader) : Widgets(reader) {
+
+    init {
+        // Add the custom widget
+        addWidget("test-widget", Widget { testWidget() })
+
+        // Bind Ctrl-X to the widget
+        val keyMap = reader.keyMaps[LineReader.MAIN]
+//        println("Before Binding: ${keyMap?.boundKeys?.keys?.joinToString("")}") // Debug keymap before binding
+
+        keyMap?.bind(Reference("test-widget"), alt(ctrl('X')))
+//        println("Before Binding: ${keyMap?.boundKeys?.keys?.joinToString("")}") // Debug keymap before binding
+    }
+
+    fun testWidget(): Boolean {
+        println("testWidget called!")
+        return try {
+            val name = buffer().toString().split("\\s+".toRegex())[0]
+            println("Buffer content: $name")
+            reader.callWidget(name)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace() // Print exception for debugging
+            false
+        }
+    }
+}
 
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
@@ -60,7 +92,21 @@ fun main() = runBlocking {
         .terminal(terminal)
         .history(history)
         .build()
+    val bla = MyWidgets(lineReader)
     val autosuggestionWidgets = AutosuggestionWidgets(lineReader)
+//    lineReader.getKeyMaps().bind(Reference("clear"), "\u0003");
+    val keyMap = lineReader.keyMaps[LineReader.MAIN] ?: throw Exception("DEATH")
+
+//    println(keyMap.boundKeys.keys.joinToString(separator = ","))
+    keyMap.boundKeys
+    // Bind Ctrl-C (ASCII 3) to a custom action "print-hello"
+    keyMap.bind(Reference("print-hello"), "\u0003") // "\u0003" is Ctrl-C
+
+    // Define the behavior for "print-hello"
+//    lineReader.setVariable(LineReader.BINDINGS, mapOf("print-hello" to Runnable {
+//        println("Hello, World!")
+//    }))
+//    println(lineReader.keyMaps.keys.joinToString("\n"))
 
 // Enable autosuggestions
     autosuggestionWidgets.enable()
