@@ -25,6 +25,7 @@ interface Lua {
     )
 
     suspend fun userFuncExists(name: String): Boolean
+    suspend fun userFuncs(): Set<String>
 }
 
 suspend fun Lua.executeFile(
@@ -141,6 +142,10 @@ object LuaEngine : Lua {
     override suspend fun userFuncExists(name: String): Boolean {
         val containsKey = _userFunctions.value.containsKey(name)
         return containsKey
+    }
+
+    override suspend fun userFuncs(): Set<String> {
+        return _userFunctions.value.keys
     }
 
 
