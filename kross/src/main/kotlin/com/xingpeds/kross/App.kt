@@ -82,6 +82,7 @@ fun main() = runBlocking {
         // Prompt the user and read input
         val userhome: String = System.getProperty("user.home")
         val cwd: String = ShellStateObject.currentDirectory.value.absolutePath.replace(userhome, "~")
+        // todo hook up the lua prompt
         var prompt = "$username $cwd> "
         val promptfunc = LuaEngine.global.key("kross")?.key("handles")?.key("prompt")?.funcOrNull()
         if (promptfunc != null) {
@@ -98,6 +99,7 @@ fun main() = runBlocking {
                             collectionScope.cancel()
                             signal()
                         }
+
 
                         Keys.BACKSPACE -> {
                             if (bufferState.value.isNotBlank()) {
@@ -143,52 +145,6 @@ fun main() = runBlocking {
         processinput(bufferState.value)
     }
 
-//        while (true) {
-//        try {
-//            // Prompt the user and read input
-//            val username = System.getProperty("user.name")
-//            val userhome: String = System.getProperty("user.home")
-//            val cwd: String = ShellStateObject.currentDirectory.value.absolutePath.replace(userhome, "~")
-//            var prompt = "$username $cwd> "
-//            val promptfunc = LuaEngine.global.key("kross")?.key("handles")?.key("prompt")?.funcOrNull()
-//            if (promptfunc != null) {
-//                prompt = promptfunc.call().tojstring()
-//            }
-////            val line = lineReader.readLine(prompt).trim()
-//            if (line.isBlank()) continue
-//
-//            // Check for exit condition
-//            if (line.equals("exit", ignoreCase = true)) {
-//                break
-//            }
-//
-//            try {
-//
-//                val lexer = Lexer(line)
-//                val parser = Parser()
-//                val ast = parser.parse(lexer.tokens())
-//                val makeExecutable: suspend (name: String) -> Executable = { name ->
-//                    if (LuaEngine.userFuncExists(name)) {
-//                        LuaExecutable()
-//                    } else if (Builtin.builtinFuns.containsKey(name)) {
-//                        BuiltInExecutable(Builtin.builtinFuns[name]!!)
-//                    } else {
-//                        JavaOSProcess()
-//                    }
-//                }
-//                val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
-//                executor.execute(ast)
-//            } catch (e: Exception) {
-//                println("failed to run command: ${e.message}")
-//// this should be in debug mode only
-//                println(e.stackTraceToString())
-//            }
-//            // Print back what the user entered (or evaluate if needed)
-//
-//        } catch (e: Exception) {
-//            terminal.writer().println("Error: ${e.message}")
-//        }
-//    }
     scope.cancel()
 }
 
