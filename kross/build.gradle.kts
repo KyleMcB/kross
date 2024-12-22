@@ -42,8 +42,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation("org.jline:jline:3.28.0")
 //    implementation("com.github.ajalt.mordant:mordant:3.0.1")
-//
-//    // optional extensions for running animations with coroutines
+    implementation("com.varabyte.kotter:kotter-jvm:1.2.1")
+    // optional extensions for running animations with coroutines
 //    implementation("com.github.ajalt.mordant:mordant-coroutines:3.0.1")
 //
 //    // optional widget for rendering Markdown
