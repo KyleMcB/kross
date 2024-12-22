@@ -4,10 +4,17 @@
 package com.xingpeds.kross
 
 import com.varabyte.kotter.foundation.input.Keys
+import com.varabyte.kotter.foundation.input.OnKeyPressedScope
 import com.varabyte.kotter.foundation.input.onKeyPressed
 import com.varabyte.kotter.foundation.runUntilSignal
 import com.varabyte.kotter.foundation.session
 import com.varabyte.kotter.foundation.text.textLine
+import com.varabyte.kotter.runtime.RunScope
+import com.varabyte.kotter.terminal.system.SystemTerminal
+import com.varabyte.kotterx.decorations.BorderCharacters
+import com.varabyte.kotterx.decorations.bordered
+import com.varabyte.kotterx.text.Justification
+import com.varabyte.kotterx.text.justified
 import com.xingpeds.kross.builtins.BuiltInExecutable
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
@@ -89,43 +96,27 @@ fun main() = runBlocking {
             prompt = promptfunc.call().tojstring()
         }
         bufferState.emit("")
-        session {
+        var finished = false
+        val terminal = SystemTerminal()
+        session(terminal = terminal) {
+
             section {
-                textLine("${promptState.value} ${bufferState.value}")
+                if (finished) {
+                    val terminalWidth = terminal.width
+
+                    bordered(borderCharacters = BorderCharacters.CURVED) {
+                        justified(Justification.RIGHT, minWidth = terminalWidth - 2) {
+                            textLine(promptState.value.dropLast(2))
+                            textLine(bufferState.value)
+                        }
+
+                    }
+                } else {
+                    textLine("${promptState.value} ${bufferState.value}")
+                }
             }.runUntilSignal {
                 onKeyPressed {
-                    when (key) {
-                        Keys.ENTER -> {
-                            collectionScope.cancel()
-                            signal()
-                        }
-
-
-                        Keys.BACKSPACE -> {
-                            if (bufferState.value.isNotBlank()) {
-                                bufferState.update {
-                                    it.dropLast(1)
-                                }
-                            }
-                        }
-
-                        Keys.ESC -> {}
-                        Keys.UP -> {}
-                        Keys.DOWN -> {}
-                        Keys.LEFT -> {}
-                        Keys.RIGHT -> {}
-                        Keys.HOME -> {}
-                        Keys.END -> {}
-                        Keys.DELETE -> {}
-                        Keys.TAB -> {}
-                        Keys.INSERT -> {}
-                        Keys.PAGE_UP -> {}
-                        Keys.PAGE_DOWN -> {}
-
-                        else -> bufferState.update {
-                            it + key
-                        }
-                    }
+                    onKeyPressed(this, collectionScope, this@runUntilSignal, bufferState)
                 }
                 collectionScope.launch {
                     bufferState.collect {
@@ -133,7 +124,10 @@ fun main() = runBlocking {
                     }
                 }
                 collectionScope.launch {
-                    promptState.collect {
+                    promptState.onCompletion {
+                        finished = true
+                        rerender()
+                    }.collect {
                         rerender()
                     }
                 }
@@ -146,6 +140,46 @@ fun main() = runBlocking {
     }
 
     scope.cancel()
+}
+
+private fun onKeyPressed(
+    onKeyPressedScope: OnKeyPressedScope,
+    collectionScope: CoroutineScope,
+    runScope: RunScope,
+    bufferState: MutableStateFlow<String>
+) {
+    when (onKeyPressedScope.key) {
+        Keys.ENTER -> {
+            collectionScope.cancel()
+            runScope.signal()
+        }
+
+
+        Keys.BACKSPACE -> {
+            if (bufferState.value.isNotBlank()) {
+                bufferState.update {
+                    it.dropLast(1)
+                }
+            }
+        }
+
+        Keys.ESC -> {}
+        Keys.UP -> {}
+        Keys.DOWN -> {}
+        Keys.LEFT -> {}
+        Keys.RIGHT -> {}
+        Keys.HOME -> {}
+        Keys.END -> {}
+        Keys.DELETE -> {}
+        Keys.TAB -> {}
+        Keys.INSERT -> {}
+        Keys.PAGE_UP -> {}
+        Keys.PAGE_DOWN -> {}
+
+        else -> bufferState.update {
+            it + onKeyPressedScope.key
+        }
+    }
 }
 
 suspend fun processinput(line: String) {
