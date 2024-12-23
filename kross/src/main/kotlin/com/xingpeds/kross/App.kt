@@ -36,6 +36,9 @@ import org.luaj.vm2.LuaValue
 import java.io.File
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import kotlin.system.measureTimeMillis
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 
 fun LuaValue.funcOrNull(): LuaFunction? = try {
@@ -105,14 +108,20 @@ fun main() = runBlocking {
                     val terminalWidth = terminal.width
 
                     bordered(borderCharacters = BorderCharacters.CURVED) {
-                        justified(Justification.RIGHT, minWidth = terminalWidth - 2) {
+                        justified(Justification.LEFT, minWidth = terminalWidth - 2) {
                             textLine(promptState.value.dropLast(2))
                             textLine(bufferState.value)
                         }
 
                     }
                 } else {
-                    textLine("${promptState.value} ${bufferState.value}")
+                    bordered(borderCharacters = BorderCharacters.CURVED) {
+                        justified(Justification.LEFT, minWidth = terminal.width - 2) {
+                            textLine("${promptState.value} ${bufferState.value}")
+
+                        }
+
+                    }
                 }
             }.runUntilSignal {
                 onKeyPressed {
@@ -136,7 +145,20 @@ fun main() = runBlocking {
         // end of collection stage. execute the input
         if (bufferState.value.isBlank()) continue
         if (bufferState.value.equals("exit", ignoreCase = true)) break
-        processinput(bufferState.value)
+        val time = measureTimeMillis {
+            processinput(bufferState.value)
+        }
+        val readableTime =
+            time.toDuration(DurationUnit.MILLISECONDS).toComponents { hours, minutes, seconds, nanoseconds ->
+                buildString {
+                    if (hours > 0) append("$hours hours, ")
+                    if (minutes > 0 || hours > 0) append("$minutes minutes, ")
+                    append("$seconds seconds")
+                    if (hours == 0L && minutes == 0) append(", ${nanoseconds / 1_000_000} milliseconds")
+                }
+            }
+
+        println(readableTime)
     }
 
     scope.cancel()
