@@ -24,14 +24,6 @@ repositories {
 }
 
 dependencies {
-    // Use the Kotlin JUnit 5 integration.
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-    // Use the JUnit 5 integration.
-    testImplementation(libs.junit.jupiter.engine)
-
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation(project(":parser"))
     implementation(project(":shell-state"))
     implementation(project(":luaScripting"))
@@ -40,14 +32,15 @@ dependencies {
     implementation(project(":builtins"))
     implementation(project(":entities"))
     implementation(libs.kotlinx.serialization.json)
-    implementation("org.jline:jline:3.28.0")
-//    implementation("com.github.ajalt.mordant:mordant:3.0.1")
     implementation("com.varabyte.kotter:kotter-jvm:1.2.1")
-    // optional extensions for running animations with coroutines
-//    implementation("com.github.ajalt.mordant:mordant-coroutines:3.0.1")
-//
-//    // optional widget for rendering Markdown
-//    implementation("com.github.ajalt.mordant:mordant-markdown:3.0.1")
+    // Use the Kotlin JUnit 5 integration.
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    // Use the JUnit 5 integration.
+    testImplementation(libs.junit.jupiter.engine)
+
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation(kotlin("test"))
 }
 
