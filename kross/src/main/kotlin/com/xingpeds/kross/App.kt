@@ -16,6 +16,7 @@ import com.varabyte.kotterx.decorations.bordered
 import com.varabyte.kotterx.text.Justification
 import com.varabyte.kotterx.text.justified
 import com.xingpeds.kross.builtins.BuiltInExecutable
+import com.xingpeds.kross.entities.json
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.executableLua.LuaExecutable
@@ -31,6 +32,7 @@ import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.serialization.json.encodeToStream
 import org.luaj.vm2.LuaFunction
 import org.luaj.vm2.LuaValue
 import java.io.File
@@ -77,6 +79,7 @@ val timeFlow = flow {
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
+    ShellStateObject.setHistoryFile(getHistoryFile())
     val lua: Lua = LuaEngine
     val initFile = initFile()
     lua.executeFile(initFile)
@@ -148,6 +151,7 @@ fun main() = runBlocking {
         val time = measureTimeMillis {
             processinput(bufferState.value)
         }
+        state.addHistory(bufferState.value)
         val readableTime =
             time.toDuration(DurationUnit.MILLISECONDS).toComponents { hours, minutes, seconds, nanoseconds ->
                 buildString {
@@ -233,13 +237,14 @@ suspend fun processinput(line: String) {
 
 fun getHistoryFile(): File {
     // Get the path to the history file
-    val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history"
+    val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history.json"
     val historyFile = File(historyFilePath)
 
     // Ensure the parent directories and the file exist
     if (!historyFile.exists()) {
         historyFile.parentFile.mkdirs() // Create parent directories if they do not exist
         historyFile.createNewFile()    // Create the file if it does not exist
+        json.encodeToStream(emptyList<String>(), historyFile.outputStream())
     }
 
     return historyFile
@@ -249,12 +254,4 @@ fun getCurrentTime(): String {
     val currentTime = LocalTime.now()
     val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     return currentTime.format(formatter)
-}
-
-// Flow that emits the time every second
-fun timeFlow(): Flow<String> = flow {
-    while (true) {
-        emit(getCurrentTime()) // Emit the current time
-        delay(1000) // Wait for 1 second
-    }
 }
