@@ -137,12 +137,19 @@ fun main() = runBlocking {
 //                onKeyPressed {
 //                    onKeyPressedKross(this, collectionScope, this@runUntilSignal, bufferState)
 //                }
-                
+                val keyFlow = toKeyEventFlow(terminal.read()).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
-                    toKeyEventFlow(terminal.read()).collect { event ->
+                    keyFlow.filterIsInstance(KeyEvent.Character::class).collect { charEvent ->
                         bufferState.update {
-                            it + event.toString()
+                            it + charEvent.text
                         }
+                    }
+                }
+                collectionScope.launch {
+                    keyFlow.filterIsInstance(KeyEvent.CR::class).collect {
+                        // for now we stop input mode and process
+                        signal()
+                        collectionScope.cancel()
                     }
                 }
                 collectionScope.launch {
