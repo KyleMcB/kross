@@ -13,8 +13,12 @@ val altTimeoutMs = 20.milliseconds
 sealed class KeyEvent {
     data class Character(val text: String) : KeyEvent()
     data class Alt(val text: String) : KeyEvent()
-    data class Ctrl(val code: Int) : KeyEvent()
+    data class Ctrl(val code: Char) : KeyEvent()
     data object Escape : KeyEvent()
+    data class Unknown(val code: Int) : KeyEvent()
+    data object Tab : KeyEvent()
+    data object Enter : KeyEvent()
+    data object Backspace : KeyEvent()
     // etc.
 }
 
@@ -38,7 +42,7 @@ fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
                     when {
                         // 1..31 = control codes (except ESC = 27)
                         b in 1..31 && b != 27 -> {
-                            send(KeyEvent.Ctrl(b))
+                            send(interpretCtrlLetterOnly(b))
                         }
 
                         // ESC (27) => check if next byte arrives quickly => Alt combination
@@ -55,6 +59,7 @@ fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
                                     // Simple ASCII Alt
                                     send(KeyEvent.Alt(nextByte.toChar().toString()))
                                 } else {
+                                    // TODO hand wide characters
                                     // For anything else, you might do a fallback
                                     // e.g., decode as UTF-8 or handle extended codes
                                     // Here, we’ll just treat it as single Alt for demonstration:
@@ -66,19 +71,64 @@ fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
                         else -> {
                             // If it's in the ASCII printable range, emit a Character
                             if (b in 32..126) {
-                                send(KeyEvent.Character(b.toChar().toString()))
+                                send(KeyEvent.Character(b.toString()))
                             } else {
                                 // For anything else (e.g. extended ASCII 128..255),
                                 // you could do a fallback decode:
                                 //   - pass to a UTF-8 decoder
                                 //   - or treat as KeyEvent.Character with extended ASCII
                                 // Here we'll just treat it as a "Character" for demonstration:
-                                send(KeyEvent.Character(b.toChar().toString()))
+                                send(KeyEvent.Character(b.toString()))
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Convert a control code in 1..26 to a letter-based Ctrl event (Ctrl-A..Ctrl-Z),
+ * or return null if it doesn't correspond to a letter.
+ *
+ *  - 1   -> 'A'  (Ctrl-A)
+ *  - 2   -> 'B'  (Ctrl-B)
+ *  - 3   -> 'C'  (Ctrl-C)
+ *  - ...
+ *  - 26  -> 'Z'  (Ctrl-Z)
+ *
+ * Codes like 9 (Tab), 10 (Line Feed), 13 (Enter), etc. will return null,
+ * because they don't map neatly to "Ctrl + letter."
+ */
+fun interpretCtrlLetterOnly(code: Int): KeyEvent {
+    return when (code) {
+        1 -> KeyEvent.Ctrl('A')
+        2 -> KeyEvent.Ctrl('B')
+        3 -> KeyEvent.Ctrl('C')
+        4 -> KeyEvent.Ctrl('D')
+        5 -> KeyEvent.Ctrl('E')
+        6 -> KeyEvent.Ctrl('F')
+        7 -> KeyEvent.Ctrl('G')
+        8 -> KeyEvent.Backspace
+        9 -> KeyEvent.Tab
+        10 -> KeyEvent.Enter
+        11 -> KeyEvent.Unknown(11) // I don't think I need to support vertical tab
+        12 -> KeyEvent.Unknown(12) // Form Feed is unsupported
+        13 -> KeyEvent.Unknown(13) // this is a tricky one, CR. might see it on windows. how older macs worked
+        14 -> KeyEvent.Ctrl('N')
+        15 -> KeyEvent.Ctrl('O')
+        16 -> KeyEvent.Ctrl('P')
+        17 -> KeyEvent.Ctrl('Q')
+        18 -> KeyEvent.Ctrl('R')
+        19 -> KeyEvent.Ctrl('S')
+        20 -> KeyEvent.Ctrl('T')
+        21 -> KeyEvent.Ctrl('U')
+        22 -> KeyEvent.Ctrl('V')
+        23 -> KeyEvent.Ctrl('W')
+        24 -> KeyEvent.Ctrl('X')
+        25 -> KeyEvent.Ctrl('Y')
+        26 -> KeyEvent.Ctrl('Z')
+        else -> KeyEvent.Unknown(code)
     }
 }
