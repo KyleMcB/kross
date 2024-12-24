@@ -75,6 +75,32 @@ val timeFlow = flow {
         delay(1000) // Wait for 1 second
     }
 }
+val baseTime = System.currentTimeMillis()
+
+sealed class KeyEvent {
+    data class Esc(val time: Long) : KeyEvent()
+    data class Character(val char: Char, val time: Long) : KeyEvent()
+    data class Alt(val char: Char, val time: Long) : KeyEvent()
+}
+
+
+fun Flow<Int>.processKeys(): Flow<KeyEvent> = flow {
+    val timeoutMs = 150L // Adjust based on user input speed
+
+    collect { key ->
+        val hi: Long = System.currentTimeMillis()
+        if (key == 27) { // Detected Esc
+            val nextKey = withTimeoutOrNull(timeoutMs) { firstOrNull() }
+            if (nextKey != null) {
+                emit(KeyEvent.Alt(nextKey.toChar(), hi - baseTime))
+            } else {
+                emit(KeyEvent.Esc(hi - baseTime))
+            }
+        } else {
+            emit(KeyEvent.Character(key.toChar(), hi - baseTime))
+        }
+    }
+}
 
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
@@ -128,7 +154,7 @@ fun main() = runBlocking {
                 }
             }.runUntilSignal {
                 onKeyPressed {
-                    onKeyPressed(this, collectionScope, this@runUntilSignal, bufferState)
+                    onKeyPressedKross(this, collectionScope, this@runUntilSignal, bufferState)
                 }
                 collectionScope.launch {
                     bufferState.collect {
@@ -168,7 +194,7 @@ fun main() = runBlocking {
     scope.cancel()
 }
 
-private fun onKeyPressed(
+private fun onKeyPressedKross(
     onKeyPressedScope: OnKeyPressedScope,
     collectionScope: CoroutineScope,
     runScope: RunScope,
