@@ -29,7 +29,7 @@ suspend fun interpretKeyEventsBuffered(
         when {
             // Control range
             code in 1..31 -> {
-                emit(KeyEvent.Ctrl(code))
+                emit(KeyEvent.Ctrl(code) as KeyEvent)
             }
 
             // ESC
@@ -39,20 +39,20 @@ suspend fun interpretKeyEventsBuffered(
                     channel.receive()
                 }
                 if (nextCode == null) {
-                    emit(KeyEvent.Escape)
+                    emit(KeyEvent.Escape as KeyEvent)
                 } else {
                     // Next code arrived => interpret as Alt
                     if (nextCode in 1..31) {
-                        emit(KeyEvent.Ctrl(nextCode))
+                        emit(KeyEvent.Ctrl(nextCode) as KeyEvent)
                     } else {
-                        emit(KeyEvent.Alt(nextCode.toChar()))
+                        emit(KeyEvent.Alt(nextCode.toChar().toString()) as KeyEvent)
                     }
                 }
             }
 
             // Normal character
             else -> {
-                emit(KeyEvent.Character(code.toChar()))
+                emit(KeyEvent.Character(code.toChar().toString()) as KeyEvent)
             }
         }
     }

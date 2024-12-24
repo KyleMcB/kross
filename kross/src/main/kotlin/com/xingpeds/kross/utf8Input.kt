@@ -1,53 +1,84 @@
 package com.xingpeds.kross
 
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.milliseconds
 
-fun utf8DecoderFlow(byteFlow: Flow<Int>): Flow<Char> = flow {
-    // A small buffer or state machine to decode UTF-8 bytes.
-    // For demonstration, let's implement a simplistic approach:
+val altTimeoutMs = 20.milliseconds
 
-    var buffer = mutableListOf<Byte>()
+sealed class KeyEvent {
+    data class Character(val text: String) : KeyEvent()
+    data class Alt(val text: String) : KeyEvent()
+    data class Ctrl(val code: Int) : KeyEvent()
+    data object Escape : KeyEvent()
+    // etc.
+}
 
-    suspend fun emitIfComplete() {
-        if (buffer.isEmpty()) return
-        val bytes = buffer.toByteArray()
-        try {
-            val str = bytes.toString(Charsets.UTF_8)
-            // Typically str will have length 1, but could be multiple chars if combining, etc.
-            for (ch in str) {
-                emit(ch)
-            }
-        } catch (e: Exception) {
-            // If decoding fails, you might want to handle it differently
-            // For now, we just emit replacement characters.
-            emit('\uFFFD')
-        } finally {
-            buffer.clear()
-        }
-    }
-
-    byteFlow.collect { b ->
-        when {
-            // For ASCII range, let's short-circuit:
-            b < 0x80 -> {
-                // If we have some partially-decoded multi-byte sequence, flush it
-                emitIfComplete()
-                emit(b.toChar())
+fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
+    return channelFlow {
+        val channel = Channel<Int>(capacity = Channel.UNLIMITED)
+        coroutineScope {
+            // 1) Collect upstream input bytes into a Channel<Int>
+            launch {
+                input.collect { byte ->
+                    channel.send(byte)
+                }
+                channel.close()
             }
 
-            else -> {
-                // Accumulate in buffer, attempt to decode once we suspect we have enough bytes
-                buffer.add(b.toByte())
-                // A real approach would check the leading bits to see how many bytes are needed
-                // For demonstration, let's just guess we can decode each byte set individually
-                // or wait for a short "incomplete" scenario.
-                if (buffer.size >= 4) {
-                    emitIfComplete()
+            // 2) Pull bytes out of the channel and interpret them
+            launch {
+                while (!channel.isClosedForReceive) {
+                    val b = channel.receiveCatching().getOrNull() ?: break
+
+                    when {
+                        // 1..31 = control codes (except ESC = 27)
+                        b in 1..31 && b != 27 -> {
+                            send(KeyEvent.Ctrl(b))
+                        }
+
+                        // ESC (27) => check if next byte arrives quickly => Alt combination
+                        b == 27 -> {
+                            val nextByte = withTimeoutOrNull(altTimeoutMs) {
+                                channel.receive()
+                            }
+                            if (nextByte == null) {
+                                // No next byte in time => ESC alone
+                                send(KeyEvent.Escape)
+                            } else {
+                                // Next byte arrived => interpret as Alt + <that char>
+                                if (nextByte in 32..126) {
+                                    // Simple ASCII Alt
+                                    send(KeyEvent.Alt(nextByte.toChar().toString()))
+                                } else {
+                                    // For anything else, you might do a fallback
+                                    // e.g., decode as UTF-8 or handle extended codes
+                                    // Here, we’ll just treat it as single Alt for demonstration:
+                                    send(KeyEvent.Alt(nextByte.toChar().toString()))
+                                }
+                            }
+                        }
+
+                        else -> {
+                            // If it's in the ASCII printable range, emit a Character
+                            if (b in 32..126) {
+                                send(KeyEvent.Character(b.toChar().toString()))
+                            } else {
+                                // For anything else (e.g. extended ASCII 128..255),
+                                // you could do a fallback decode:
+                                //   - pass to a UTF-8 decoder
+                                //   - or treat as KeyEvent.Character with extended ASCII
+                                // Here we'll just treat it as a "Character" for demonstration:
+                                send(KeyEvent.Character(b.toChar().toString()))
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-    // Flush anything left
-    emitIfComplete()
 }

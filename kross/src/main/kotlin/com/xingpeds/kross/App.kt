@@ -2,7 +2,6 @@ package com.xingpeds.kross
 
 import com.varabyte.kotter.foundation.input.Keys
 import com.varabyte.kotter.foundation.input.OnKeyPressedScope
-import com.varabyte.kotter.foundation.input.onKeyPressed
 import com.varabyte.kotter.foundation.runUntilSignal
 import com.varabyte.kotter.foundation.session
 import com.varabyte.kotter.foundation.text.textLine
@@ -73,6 +72,17 @@ val timeFlow = flow {
     }
 }
 
+//fun main2() = runBlocking {
+//    val main = this
+//    toKeyEventFlow().collect { keyEvent ->
+//        println("pressed key: $keyEvent")
+//        if (keyEvent == KeyEvent.Character("q")) {
+//            cancel()
+//
+//        }
+//    }
+//}
+
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
@@ -124,8 +134,15 @@ fun main() = runBlocking {
                     }
                 }
             }.runUntilSignal {
-                onKeyPressed {
-                    onKeyPressedKross(this, collectionScope, this@runUntilSignal, bufferState)
+//                onKeyPressed {
+//                    onKeyPressedKross(this, collectionScope, this@runUntilSignal, bufferState)
+//                }
+                collectionScope.launch {
+                    toKeyEventFlow(terminal.read()).collect { event ->
+                        bufferState.update {
+                            it + event.toString()
+                        }
+                    }
                 }
                 collectionScope.launch {
                     bufferState.collect {
