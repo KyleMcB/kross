@@ -20,7 +20,12 @@ sealed class KeyEvent {
     data object CR : KeyEvent()
     data object LF : KeyEvent()
     data object Backspace : KeyEvent()
-    // etc.
+
+    // ARROW KEYS
+    data object UpArrow : KeyEvent()
+    data object DownArrow : KeyEvent()
+    data object LeftArrow : KeyEvent()
+    data object RightArrow : KeyEvent()
 }
 
 fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
@@ -41,52 +46,67 @@ fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
                     val b = channel.receiveCatching().getOrNull() ?: break
 
                     if (b == 27) {
-                        val nextByte = withTimeoutOrNull(altTimeoutMs) {
+                        // We suspect ESC-based sequence (Alt or arrows, etc.)
+                        val secondByte = withTimeoutOrNull(altTimeoutMs) {
                             channel.receive()
                         }
-                        if (nextByte == null) {
-                            // No next byte in time => ESC alone
+                        if (secondByte == null) {
+                            // No second byte => plain Escape
                             send(KeyEvent.Escape)
                         } else {
-                            // Next byte arrived => interpret as Alt + <that char>
-                            if (nextByte in 32..126) {
-                                // Simple ASCII Alt
-                                send(KeyEvent.Alt(nextByte.toChar().toString()))
-                            } else {
-                                // TODO hand wide characters
-                                // For anything else, you might do a fallback
-                                // e.g., decode as UTF-8 or handle extended codes
-                                // Here, we’ll just treat it as single Alt for demonstration:
-                                send(KeyEvent.Alt(nextByte.toChar().toString()))
+                            // We have some second byte; check if it's an arrow/control sequence or just Alt+char
+                            when (secondByte) {
+                                91, 79 -> {
+                                    // 91 = '['  ; 79 = 'O'
+                                    // Likely arrow keys or other ESC [ / ESC O sequences
+                                    val thirdByte = withTimeoutOrNull(altTimeoutMs) {
+                                        channel.receive()
+                                    }
+                                    if (thirdByte == null) {
+                                        // Timed out => we can't parse it fully
+                                        send(KeyEvent.Unknown("ESC $secondByte (no third byte)"))
+                                    } else {
+                                        // Check for arrow codes
+                                        when (thirdByte) {
+                                            65 -> send(KeyEvent.UpArrow)    // 'A'
+                                            66 -> send(KeyEvent.DownArrow)  // 'B'
+                                            67 -> send(KeyEvent.RightArrow) // 'C'
+                                            68 -> send(KeyEvent.LeftArrow)  // 'D'
+                                            else -> {
+                                                // Not a recognized arrow => treat as unknown or custom
+                                                send(KeyEvent.Unknown("ESC $secondByte $thirdByte"))
+                                            }
+                                        }
+                                    }
+                                }
+
+                                in 32..126 -> {
+                                    // Simple ASCII => Alt+char
+                                    send(KeyEvent.Alt(secondByte.toChar().toString()))
+                                }
+
+                                else -> {
+                                    // Fallback for any other code after ESC
+                                    send(KeyEvent.Alt(secondByte.toChar().toString()))
+                                }
                             }
                         }
                     } else {
+                        // Not ESC => interpret single-byte code directly
                         send(b.toKeyEvent())
                     }
-//                    when (b) {
-//                        else -> {
-//                            // If it's in the ASCII printable range, emit a Character
-//                            if (b in 32..126) {
-//                                send(KeyEvent.Character(b.toString()))
-//                            } else {
-//                                // For anything else (e.g. extended ASCII 128..255),
-//                                // you could do a fallback decode:
-//                                //   - pass to a UTF-8 decoder
-//                                //   - or treat as KeyEvent.Character with extended ASCII
-//                                // Here we'll just treat it as a "Character" for demonstration:
-//                                send(KeyEvent.Character(b.toString()))
-//                            }
-//                        }
-//                    }
                 }
             }
         }
     }
 }
 
+/**
+ * Basic ASCII-based interpretation for single bytes (non-ESC).
+ * ESC (27) is handled separately above.
+ */
 fun Int.toKeyEvent() = when (this) {
-
-
+    // Control letters: 1..26 => Ctrl('A'..'Z') except for special ones like Tab, etc.
     1 -> KeyEvent.Ctrl('A')
     2 -> KeyEvent.Ctrl('B')
     3 -> KeyEvent.Ctrl('C')
@@ -94,11 +114,11 @@ fun Int.toKeyEvent() = when (this) {
     5 -> KeyEvent.Ctrl('E')
     6 -> KeyEvent.Ctrl('F')
     7 -> KeyEvent.Ctrl('G')
-    8 -> KeyEvent.Backspace
+    8 -> KeyEvent.Backspace    // could also be ASCII 127 for backspace
     9 -> KeyEvent.Tab
     10 -> KeyEvent.LF
-    11 -> KeyEvent.Unknown("11") // I don't think I need to support vertical tab
-    12 -> KeyEvent.Unknown("12") // Form Feed is unsupported
+    11 -> KeyEvent.Unknown("VT(11)")  // not supported
+    12 -> KeyEvent.Unknown("FF(12)")  // not supported
     13 -> KeyEvent.CR
     14 -> KeyEvent.Ctrl('N')
     15 -> KeyEvent.Ctrl('O')
@@ -113,9 +133,10 @@ fun Int.toKeyEvent() = when (this) {
     24 -> KeyEvent.Ctrl('X')
     25 -> KeyEvent.Ctrl('Y')
     26 -> KeyEvent.Ctrl('Z')
-    // ESC (27) handle elsewhere
 
-    in (32..126) -> KeyEvent.Character(this.toChar().toString())
+    // 27 -> handled in the ESC logic above
+
+    in 32..126 -> KeyEvent.Character(this.toChar().toString())  // ASCII printable
     127 -> KeyEvent.Backspace
 
     else -> KeyEvent.Unknown(this.toString())

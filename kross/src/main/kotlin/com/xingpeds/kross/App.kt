@@ -137,6 +137,7 @@ fun main() = runBlocking {
 //                onKeyPressed {
 //                    onKeyPressedKross(this, collectionScope, this@runUntilSignal, bufferState)
 //                }
+                
                 collectionScope.launch {
                     toKeyEventFlow(terminal.read()).collect { event ->
                         bufferState.update {
