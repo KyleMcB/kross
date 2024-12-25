@@ -98,7 +98,7 @@ fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
                                 }
                             }
                         }
-                    } else if (b < 127) {
+                    } else if (b < 128) {
                         // Not ESC => interpret single-byte code directly
                         send(b.toKeyEvent())
                     } else {

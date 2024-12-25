@@ -13,4 +13,12 @@ class Utf8InputKtTest {
         toKeyEventFlow(happyFaceEmoji).toList().also(::println)
         Unit
     }
+
+    @Test
+    fun backspace() = runBlocking {
+        val backspace = flowOf(127)
+
+        toKeyEventFlow(backspace).toList().also(::println)
+        Unit
+    }
 }
