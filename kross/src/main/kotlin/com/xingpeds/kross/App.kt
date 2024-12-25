@@ -4,6 +4,8 @@ import com.varabyte.kotter.foundation.input.Keys
 import com.varabyte.kotter.foundation.input.OnKeyPressedScope
 import com.varabyte.kotter.foundation.runUntilSignal
 import com.varabyte.kotter.foundation.session
+import com.varabyte.kotter.foundation.text.invert
+import com.varabyte.kotter.foundation.text.text
 import com.varabyte.kotter.foundation.text.textLine
 import com.varabyte.kotter.runtime.RunScope
 import com.varabyte.kotter.terminal.system.SystemTerminal
@@ -83,6 +85,8 @@ val timeFlow = flow {
 //    }
 //}
 
+data class EditState(val content: String, val cursor: Int)
+
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
@@ -90,7 +94,7 @@ fun main() = runBlocking {
     val lua: Lua = LuaEngine
     val initFile = initFile()
     lua.executeFile(initFile)
-    val bufferState = MutableStateFlow("")
+    val bufferState = MutableStateFlow<EditState>(EditState("", 0))
     val username = System.getProperty("user.name")
     val promptState = createPromptState(
         timeFlow, state.currentDirectory,
@@ -108,7 +112,7 @@ fun main() = runBlocking {
         if (promptfunc != null) {
             prompt = promptfunc.call().tojstring()
         }
-        bufferState.emit("")
+        bufferState.emit(EditState("", 0))
         var finished = false
         val terminal = SystemTerminal()
         session(terminal = terminal) {
@@ -120,38 +124,78 @@ fun main() = runBlocking {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
                         justified(Justification.LEFT, minWidth = terminalWidth - 2) {
                             textLine(promptState.value.dropLast(2))
-                            textLine(bufferState.value)
+                            textLine(bufferState.value.content)
                         }
 
                     }
                 } else {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
                         justified(Justification.LEFT, minWidth = terminal.width - 2) {
-                            textLine("${promptState.value} ${bufferState.value}")
-
+//                            textLine("${promptState.value} ${bufferState.value}")
+                            text(promptState.value)
+                            val bufferSnapShot = bufferState.value.content
+                            val cursorIndex = bufferState.value.cursor
+                            for ((index, c) in bufferSnapShot.toCharArray().withIndex()) {
+                                if (index == cursorIndex) {
+                                    invert {
+                                        text(c)
+                                    }
+                                } else {
+                                    text(c)
+                                }
+                            }
+                            if (bufferSnapShot.length == cursorIndex) {
+                                invert {
+                                    text(" ")
+                                }
+                            }
+//                            textLine(
+//                                if (bufferState.value.isBlank()) " " else ""
+//                            )
                         }
 
                     }
                 }
             }.runUntilSignal {
-//                onKeyPressed {
-//                    onKeyPressedKross(this, collectionScope, this@runUntilSignal, bufferState)
-//                }
                 val keyFlow = toKeyEventFlow(terminal.read()).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
-                    keyFlow.filterIsInstance(KeyEvent.Character::class).collect { charEvent ->
-                        bufferState.update {
-                            it + charEvent.text
+                    keyFlow.filterIsInstance(KeyEvent.LeftArrow::class).collect {
+                        bufferState.update { (content, cursor) ->
+                            EditState(content, if (cursor > 0) cursor - 1 else 0)
                         }
                     }
                 }
                 collectionScope.launch {
-                    keyFlow.filterIsInstance(KeyEvent.Unknown::class).collect { unknown ->
-                        bufferState.update {
-                            it + unknown.code
+                    keyFlow.filterIsInstance(KeyEvent.RightArrow::class).collect {
+                        bufferState.update { (content, cursor) ->
+                            EditState(content, if (cursor < content.length) cursor + 1 else content.length)
                         }
                     }
                 }
+                collectionScope.launch {
+                    keyFlow.filterIsInstance(KeyEvent.Character::class).collect { charEvent ->
+                        bufferState.update { (content, cursor) ->
+                            EditState(content.insertAt(cursor, charEvent.text), cursor + charEvent.text.length)
+                        }
+                    }
+                }
+                collectionScope.launch {
+                    keyFlow.filterIsInstance(KeyEvent.Backspace::class).collect { backspaceEvent ->
+                        bufferState.update { (content, cursor) ->
+                            EditState(
+                                content.dropAt(cursor),
+                                if (cursor > 0) cursor - 1 else 0
+                            )
+                        }
+                    }
+                }
+//                collectionScope.launch {
+//                    keyFlow.filterIsInstance(KeyEvent.Unknown::class).collect { unknown ->
+//                        bufferState.update {
+//                            it + unknown.code
+//                        }
+//                    }
+//                }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.CR::class).collect {
                         // for now we stop input mode and process
@@ -175,12 +219,12 @@ fun main() = runBlocking {
             }
         }
         // end of collection stage. execute the input
-        if (bufferState.value.isBlank()) continue
-        if (bufferState.value.equals("exit", ignoreCase = true)) break
+        if (bufferState.value.content.isBlank()) continue
+        if (bufferState.value.content.equals("exit", ignoreCase = true)) break
         val time = measureTimeMillis {
-            processinput(bufferState.value)
+            processinput(bufferState.value.content)
         }
-        state.addHistory(bufferState.value)
+        state.addHistory(bufferState.value.content)
         val readableTime =
             time.toDuration(DurationUnit.MILLISECONDS).toComponents { hours, minutes, seconds, nanoseconds ->
                 buildString {
@@ -283,4 +327,25 @@ fun getCurrentTime(): String {
     val currentTime = LocalTime.now()
     val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     return currentTime.format(formatter)
+}
+
+fun String.insertAt(index: Int, string: String): String {
+    if (index !in 0..length) throw IndexOutOfBoundsException("Index $index out of bounds for length $length")
+    return this.substring(0, index) + string + this.substring(index)
+}
+
+fun String.dropAt(index: Int): String {
+    return when (index) {
+        0 -> {
+            this
+        }
+
+        in 1 until length -> {
+            this.substring(0, index - 1) + this.substring(index)
+        }
+
+        else -> {
+            this.dropLast(1)
+        }
+    }
 }
