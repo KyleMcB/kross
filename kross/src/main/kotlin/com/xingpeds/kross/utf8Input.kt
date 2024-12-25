@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.milliseconds
 
+
 val altTimeoutMs = 20.milliseconds
 
 sealed class KeyEvent {
@@ -102,7 +103,19 @@ fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
                         send(b.toKeyEvent())
                     } else {
                         // this is a wide character
-                        send(KeyEvent.Unknown(b.toString()))
+                        val char = b.toChar()
+                        val highpoint = char.isHighSurrogate()
+                        if (highpoint) {
+                            val next = channel.receiveCatching().getOrNull() ?: break
+                            val wideChar = charArrayOf(char, next.toChar()).concatToString()
+                            send(
+                                KeyEvent.Character(wideChar)
+                            )
+                        } else {
+                            send(
+                                KeyEvent.Character(char.toString())
+                            )
+                        }
                     }
                 }
             }

@@ -146,6 +146,13 @@ fun main() = runBlocking {
                     }
                 }
                 collectionScope.launch {
+                    keyFlow.filterIsInstance(KeyEvent.Unknown::class).collect { unknown ->
+                        bufferState.update {
+                            it + unknown.code
+                        }
+                    }
+                }
+                collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.CR::class).collect {
                         // for now we stop input mode and process
                         signal()
