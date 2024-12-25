@@ -13,6 +13,12 @@ val altTimeoutMs = 20.milliseconds
 sealed class KeyEvent {
     data class Character(val text: String) : KeyEvent()
     data class Alt(val text: String) : KeyEvent()
+
+    /**
+     * ctrl can only work with a-z
+     * the letter will always be capital too, so detecting shift is not possible
+     * ctrl+I through ctrl+M are reserved
+     */
     data class Ctrl(val code: Char) : KeyEvent()
     data object Escape : KeyEvent()
     data class Unknown(val code: String) : KeyEvent()
@@ -91,9 +97,12 @@ fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
                                 }
                             }
                         }
-                    } else {
+                    } else if (b < 127) {
                         // Not ESC => interpret single-byte code directly
                         send(b.toKeyEvent())
+                    } else {
+                        // this is a wide character
+                        send(KeyEvent.Unknown(b.toString()))
                     }
                 }
             }
@@ -105,7 +114,7 @@ fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
  * Basic ASCII-based interpretation for single bytes (non-ESC).
  * ESC (27) is handled separately above.
  */
-fun Int.toKeyEvent() = when (this) {
+private fun Int.toKeyEvent() = when (this) {
     // Control letters: 1..26 => Ctrl('A'..'Z') except for special ones like Tab, etc.
     1 -> KeyEvent.Ctrl('A')
     2 -> KeyEvent.Ctrl('B')
