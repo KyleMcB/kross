@@ -99,6 +99,7 @@ fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>
 
                 -1 -> {
                     output.cancel()
+                    break
                 }
             }
         } catch (e: Exception) {
