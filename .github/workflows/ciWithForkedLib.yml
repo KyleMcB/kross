@@ -1,6 +1,6 @@
 # .github/workflows/ci.yml
 
-name: PR check
+name: PR check with forked lib
 
 on:
   pull_request:
