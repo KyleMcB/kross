@@ -125,6 +125,7 @@ fun main() = runBlocking {
     while (true) {
         val collectionScope = CoroutineScope(Dispatchers.Default)
 
+        var historyCursor: Int? = null
         // Prompt the user and read input
         val userhome: String = System.getProperty("user.home")
         val cwd: String = ShellStateObject.currentDirectory.value.absolutePath.replace(userhome, "~")
@@ -179,11 +180,7 @@ fun main() = runBlocking {
                                     text(" ")
                                 }
                             }
-//                            textLine(
-//                                if (bufferState.value.isBlank()) " " else ""
-//                            )
                         }
-
                     }
                 }
             }.runUntilSignal {
@@ -191,6 +188,30 @@ fun main() = runBlocking {
                 val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
                     readUntilEnter(terminal, channel)
+                }
+                collectionScope.launch {
+                    keyFlow.filterIsInstance(KeyEvent.UpArrow::class).collect {
+                        historyCursor = historyCursor?.plus(1) ?: 0
+                        if (historyCursor!! > state.history.value.lastIndex) {
+                            historyCursor = state.history.value.lastIndex
+                        }
+                        val content = state.history.value[historyCursor!!].first
+                        bufferState.emit(
+                            EditState(content, content.length)
+                        )
+                    }
+                }
+                collectionScope.launch {
+                    keyFlow.filterIsInstance(KeyEvent.DownArrow::class).collect {
+                        historyCursor = historyCursor?.minus(1) ?: 0
+                        if (historyCursor!! < 0) {
+                            historyCursor = 0
+                        }
+                        val content = state.history.value[historyCursor!!].first
+                        bufferState.emit(
+                            EditState(content, content.length)
+                        )
+                    }
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.LeftArrow::class).collect {
@@ -344,6 +365,7 @@ suspend fun processinput(line: String) {
 
 fun getHistoryFile(): File {
     // Get the path to the history file
+    // todo check XDG home first
     val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history.json"
     val historyFile = File(historyFilePath)
 

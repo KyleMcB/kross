@@ -6,7 +6,8 @@ import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
 import java.io.File
 
-typealias UserCommandHistory = List<String>
+typealias HistoryEntry = Pair<String, Int>
+typealias UserCommandHistory = List<HistoryEntry>
 
 @OptIn(ExperimentalSerializationApi::class)
 fun loadHistory(file: File): UserCommandHistory {
@@ -30,8 +31,7 @@ fun loadHistory(file: File): UserCommandHistory {
 
 @OptIn(ExperimentalSerializationApi::class)
 fun saveHistory(file: File, history: UserCommandHistory) {
-    require(file.exists())
-    require(file.isFile)
+    file.createNewFile()
     require(file.canWrite())
     require(file.canRead())
     //wipe file
