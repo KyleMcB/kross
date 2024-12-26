@@ -75,46 +75,7 @@ val timeFlow = flow {
     }
 }
 
-//fun main2() = runBlocking {
-//    val main = this
-//    toKeyEventFlow().collect { keyEvent ->
-//        println("pressed key: $keyEvent")
-//        if (keyEvent == KeyEvent.Character("q")) {
-//            cancel()
-//
-//        }
-//    }
-//}
-
 data class EditState(val content: String, val cursor: Int)
-
-fun main2() = runBlocking {
-    val terminal: SystemTerminal = SystemTerminal()
-    val output = MutableStateFlow<String>("")
-    val scope = CoroutineScope(Dispatchers.Default)
-    session(terminal = terminal) {
-        section {
-            textLine("${output.value}")
-        }.runUntilSignal {
-
-            val channel = Channel<Int>(Channel.UNLIMITED)
-            scope.launch {
-
-                readUntilEnter(terminal, channel)
-                launch {
-                    for (byte in channel) {
-                        output.update {
-                            it + byte.toChar()
-                        }
-                        rerender()
-                    }
-                    signal()
-                }
-            }
-        }
-    }
-}
-
 
 fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>) = launch {
 
@@ -217,10 +178,8 @@ fun main() = runBlocking {
                 }
             }.runUntilSignal {
                 val channel = Channel<Int>(Channel.UNLIMITED)
-//                val keyFlow = channel.receiveAsFlow().shareIn(collectionScope, SharingStarted.Eagerly)
                 val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
-                    // read until enter pressed
                     readUntilEnter(terminal, channel)
                 }
                 collectionScope.launch {

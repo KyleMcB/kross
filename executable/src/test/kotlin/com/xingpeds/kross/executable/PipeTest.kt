@@ -6,7 +6,6 @@ import com.xingpeds.kross.entities.asOutputStream
 import com.xingpeds.kross.entities.connectTo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -15,25 +14,6 @@ import kotlin.time.Duration.Companion.seconds
 
 // TODO clean up printlns
 class PipeTest {
-
-    @Test
-    fun channel() = runTest(timeout = 5.seconds) {
-        val channel = Channel<Int>(0)
-        val scope = CoroutineScope(Dispatchers.Default)
-        scope.launch {
-            channel.send(1)
-            channel.send(2)
-            channel.send(3)
-            channel.close()
-        }
-        val result = mutableListOf<Int>()
-        for (i in channel) {
-            if (i == 2) channel.close()
-            result.add(i)
-        }
-        println(result)
-    }
-
 
     @Test
     fun simpleLuaWriter() = runTest(timeout = 5.seconds) {
