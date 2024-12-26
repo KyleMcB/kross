@@ -88,7 +88,7 @@ val timeFlow = flow {
 
 data class EditState(val content: String, val cursor: Int)
 
-fun main3() = runBlocking {
+fun main() = runBlocking {
     val terminal: SystemTerminal = SystemTerminal()
     val output = MutableStateFlow<String>("")
     val scope = CoroutineScope(Dispatchers.Default)
@@ -97,32 +97,18 @@ fun main3() = runBlocking {
             textLine("${output.value}")
         }.runUntilSignal {
 
+            val channel = Channel<Int>(Channel.UNLIMITED)
             scope.launch {
 
-                while (true) {
-                    try {
-
-                        val byte = terminal.read(15)
-                        if (byte >= 0) {
-                            output.update {
-                                it + byte.toChar()
-                            }
+                readUntilEnter(terminal, channel)
+                launch {
+                    for (byte in channel) {
+                        output.update {
+                            it + byte.toChar()
                         }
                         rerender()
-                        when (byte) {
-                            10 -> {
-                                signal()
-                                break
-                            }
-
-                            13 -> {
-                                signal()
-                                break
-                            }
-                        }
-                    } catch (e: Exception) {
-                        //bla
                     }
+                    signal()
                 }
             }
         }
@@ -140,11 +126,17 @@ fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>
             }
             when (byte) {
                 10 -> {
+                    output.close()
                     break
                 }
 
                 13 -> {
+                    output.close()
                     break
+                }
+
+                -1 -> {
+                    output.cancel()
                 }
             }
         } catch (e: Exception) {
@@ -153,7 +145,7 @@ fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>
     }
 }
 
-fun main() = runBlocking {
+fun main2() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
     ShellStateObject.setHistoryFile(getHistoryFile())
