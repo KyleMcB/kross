@@ -32,7 +32,7 @@ dependencies {
     implementation(project(":builtins"))
     implementation(project(":entities"))
     implementation(libs.kotlinx.serialization.json)
-    implementation("com.varabyte.kotter:kotter-jvm:1.2.1")
+    implementation("com.varabyte.kotter:kotter")
     // Use the Kotlin JUnit 5 integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 

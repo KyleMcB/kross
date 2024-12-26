@@ -19,3 +19,9 @@ include("executable")
 include("executable-lua")
 include("builtins")
 include("entities")
+includeBuild("../kotter") {
+    dependencySubstitution {
+        substitute(module("com.varabyte.kotter:kotter"))
+            .using(project(":kotter")) // or the correct subproject name
+    }
+}
