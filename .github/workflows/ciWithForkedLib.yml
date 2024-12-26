@@ -1,0 +1,58 @@
+# .github/workflows/ci.yml
+
+name: PR check with forked lib
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      # Checkout your main project
+      - name: Checkout Main Project
+        uses: actions/checkout@v3
+        with:
+          # Ensures that submodules or other repos can be checked out separately
+          fetch-depth: 0
+
+      # Set up Java (update the version as per your project)
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # Checkout your forked Kotter repository
+      - name: Checkout Kotter Fork
+        uses: actions/checkout@v3
+        with:
+          repository: KyleMcB/kotter
+          path: kotter
+          # If private, use a token
+          # token: ${{ secrets.GIT_TOKEN }}
+
+      # Set up JDK (ensure it's the version Kotter requires, e.g., Java 11)
+      #      - name: Set up JDK 11
+      #        uses: actions/setup-java@v3
+      #        with:
+      #          java-version: '11'
+      #          distribution: 'adopt'
+
+      # Run tests
+      - name: Run Tests
+        run: ./gradlew test
+
+      # Build the distribution zip
+      - name: Build Distribution
+        run: ./gradlew distZip
+
+      # Upload the zip file as an artifact
+      - name: Upload Distribution Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: distribution
+          path: kross/build/distributions/*.zip

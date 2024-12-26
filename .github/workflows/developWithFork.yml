@@ -1,0 +1,45 @@
+name: Publish Develop Build with forked lib
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Checkout Kotter Fork
+        uses: actions/checkout@v3
+        with:
+          repository: KyleMcB/kotter
+          path: kotter
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build and Test
+        run: |
+          ./gradlew test
+          ./gradlew assemble
+
+      - name: Create or Update GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          tag: develop-latest
+          name: "Develop Build" # Correct input for release name
+          body: "This is the latest build for the develop branch."
+          draft: false
+          prerelease: true
+          artifacts: kross/build/distributions/*.zip
+          replacesArtifacts: true # Removes existing artifacts before uploading new ones
+          removeArtifacts: true # Ensures the release is updated with fresh artifacts
+          allowUpdates: true # Allows updating the existing release
