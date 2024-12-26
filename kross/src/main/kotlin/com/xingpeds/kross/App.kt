@@ -14,6 +14,9 @@ import com.varabyte.kotterx.decorations.bordered
 import com.varabyte.kotterx.text.Justification
 import com.varabyte.kotterx.text.justified
 import com.xingpeds.kross.builtins.BuiltInExecutable
+import com.xingpeds.kross.entities.Pipes
+import com.xingpeds.kross.entities.asOutputStream
+import com.xingpeds.kross.entities.connectTo
 import com.xingpeds.kross.entities.json
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
@@ -78,7 +81,11 @@ val timeFlow = flow {
 
 data class EditState(val content: String, val cursor: Int)
 
-fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>) = launch {
+fun CoroutineScope.readUntilEnter(
+    terminal: SystemTerminal,
+    output: Channel<Int>,
+    terminalInput: List<Int> = listOf(10, 13)
+) = launch {
 
     while (true) {
         try {
@@ -88,12 +95,16 @@ fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>
                 output.send(byte)
             }
             when (byte) {
-                10 -> {
-                    output.close()
-                    break
-                }
-
-                13 -> {
+//                10 -> {
+//                    output.close()
+//                    break
+//                }
+//
+//                13 -> {
+//                    output.close()
+//                    break
+//                }
+                in terminalInput -> {
                     output.close()
                     break
                 }
@@ -109,6 +120,11 @@ fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>
     }
 }
 
+enum class ProcessStep {
+    UserCommand,
+    HistorySearch
+}
+
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
@@ -117,14 +133,17 @@ fun main() = runBlocking {
     val initFile = initFile()
     lua.executeFile(initFile)
     val bufferState = MutableStateFlow<EditState>(EditState("", 0))
+
     val username = System.getProperty("user.name")
     val promptState = createPromptState(
         timeFlow, state.currentDirectory,
         username = username
     )
+    val heldOverOuput = MutableStateFlow("")
     while (true) {
         val collectionScope = CoroutineScope(Dispatchers.Default)
-
+        val processState = MutableStateFlow(ProcessStep.UserCommand)
+        var historyCursor: Int? = null
         // Prompt the user and read input
         val userhome: String = System.getProperty("user.home")
         val cwd: String = ShellStateObject.currentDirectory.value.absolutePath.replace(userhome, "~")
@@ -134,7 +153,10 @@ fun main() = runBlocking {
         if (promptfunc != null) {
             prompt = promptfunc.call().tojstring()
         }
-        bufferState.emit(EditState("", 0))
+        val heldOutput = heldOverOuput.value
+        val startingBuffer = EditState(heldOutput, heldOutput.length)
+        bufferState.emit(startingBuffer)
+        heldOverOuput.emit("")
         var finished = false
         val terminal = SystemTerminal() {
             if (bufferState.value.content.isBlank()) {
@@ -151,12 +173,21 @@ fun main() = runBlocking {
                 if (finished) {
                     val terminalWidth = terminal.width
 
-                    bordered(borderCharacters = BorderCharacters.CURVED) {
-                        justified(Justification.LEFT, minWidth = terminalWidth - 2) {
-                            textLine(promptState.value.dropLast(2))
-                            textLine(bufferState.value.content)
+                    when (processState.value) {
+                        ProcessStep.UserCommand -> {
+
+                            bordered(borderCharacters = BorderCharacters.CURVED) {
+                                justified(Justification.LEFT, minWidth = terminalWidth - 2) {
+                                    textLine(promptState.value.dropLast(2))
+                                    textLine(bufferState.value.content)
+                                }
+
+                            }
                         }
 
+                        ProcessStep.HistorySearch -> {
+                            // leave nothing behind, this will make the input box looks continuous
+                        }
                     }
                 } else {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
@@ -179,18 +210,48 @@ fun main() = runBlocking {
                                     text(" ")
                                 }
                             }
-//                            textLine(
-//                                if (bufferState.value.isBlank()) " " else ""
-//                            )
                         }
-
                     }
                 }
             }.runUntilSignal {
                 val channel = Channel<Int>(Channel.UNLIMITED)
                 val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
-                    readUntilEnter(terminal, channel)
+                    // TODO improve the terminal character list
+                    // alt combo are not even possible with this system
+                    readUntilEnter(terminal, channel, listOf(10, 13, 18))
+                }
+                collectionScope.launch {
+                    keyFlow.filter { it == KeyEvent.Ctrl('R') }.collect {
+                        // ctrl-r needs to be terminal like enter
+                        processState.emit(ProcessStep.HistorySearch)
+                        signal()
+                        collectionScope.cancel()
+                    }
+                }
+                collectionScope.launch {
+                    keyFlow.filterIsInstance(KeyEvent.UpArrow::class).collect {
+                        historyCursor = historyCursor?.plus(1) ?: 0
+                        if (historyCursor!! > state.history.value.lastIndex) {
+                            historyCursor = state.history.value.lastIndex
+                        }
+                        val content = state.history.value[historyCursor!!].first
+                        bufferState.emit(
+                            EditState(content, content.length)
+                        )
+                    }
+                }
+                collectionScope.launch {
+                    keyFlow.filterIsInstance(KeyEvent.DownArrow::class).collect {
+                        historyCursor = historyCursor?.minus(1) ?: 0
+                        if (historyCursor!! < 0) {
+                            historyCursor = 0
+                        }
+                        val content = state.history.value[historyCursor!!].first
+                        bufferState.emit(
+                            EditState(content, content.length)
+                        )
+                    }
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.LeftArrow::class).collect {
@@ -252,24 +313,61 @@ fun main() = runBlocking {
                 }
             }
         }
+        terminal.close()
         // end of collection stage. execute the input
-        if (bufferState.value.content.isBlank()) continue
-        if (bufferState.value.content.equals("exit", ignoreCase = true)) break
-        val time = measureTimeMillis {
-            processinput(bufferState.value.content)
-        }
-        state.addHistory(bufferState.value.content)
-        val readableTime =
-            time.toDuration(DurationUnit.MILLISECONDS).toComponents { hours, minutes, seconds, nanoseconds ->
-                buildString {
-                    if (hours > 0) append("$hours hours, ")
-                    if (minutes > 0 || hours > 0) append("$minutes minutes, ")
-                    append("$seconds seconds")
-                    if (hours == 0L && minutes == 0) append(", ${nanoseconds / 1_000_000} milliseconds")
+        when (processState.value) {
+            ProcessStep.UserCommand -> {
+
+                if (bufferState.value.content.isBlank()) continue
+                if (bufferState.value.content.equals("exit", ignoreCase = true)) break
+                val time = measureTimeMillis {
+                    processinput(bufferState.value.content)
                 }
+                state.addHistory(bufferState.value.content)
+                val readableTime =
+                    time.toDuration(DurationUnit.MILLISECONDS).toComponents { hours, minutes, seconds, nanoseconds ->
+                        buildString {
+                            if (hours > 0) append("$hours hours, ")
+                            if (minutes > 0 || hours > 0) append("$minutes minutes, ")
+                            append("$seconds seconds")
+                            if (hours == 0L && minutes == 0) append(", ${nanoseconds / 1_000_000} milliseconds")
+                        }
+                    }
+
+                println(readableTime)
             }
 
-        println(readableTime)
+            ProcessStep.HistorySearch -> {
+                val fzfScope = CoroutineScope(Dispatchers.Default)
+                val inputPipe = Channel<Int>(Channel.UNLIMITED)
+                val outputPipe = Channel<Int>(Channel.UNLIMITED)
+                val output = StringBuilder()
+                val pipes = Pipes(programInput = inputPipe, programOutput = outputPipe)
+                val history = state.history.value.joinToString("\n") { it.first }
+                fzfScope.launch {
+                    launch {
+                        outputPipe.connectTo(output.asOutputStream())
+                    }
+                    launch {
+                        inputPipe.connectTo(history.byteInputStream())
+                    }
+                    launch {
+                        val executor = JavaOSProcess()
+                        executor.invoke(
+                            "fzf",
+                            args = listOf("--query=${bufferState.value.content}"),
+                            pipes = pipes,
+                            env = state.environment.value,
+                            cwd = state.currentDirectory.value
+                        )
+                        inputPipe.close()
+                        outputPipe.close()
+                    }
+
+                }.join()
+                heldOverOuput.emit(output.toString().trim())
+            }
+        }
     }
 
     scope.cancel()
@@ -344,6 +442,7 @@ suspend fun processinput(line: String) {
 
 fun getHistoryFile(): File {
     // Get the path to the history file
+    // todo check XDG home first
     val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history.json"
     val historyFile = File(historyFilePath)
 

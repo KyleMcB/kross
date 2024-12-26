@@ -13,6 +13,7 @@ interface ShellState {
     val environment: StateFlow<Map<String, String>>
     suspend fun setVariable(name: String, value: String)
     suspend fun addHistory(command: String)
+    val history: StateFlow<UserCommandHistory>
 
 }
 
@@ -43,8 +44,18 @@ object ShellStateObject : ShellState {
     }
 
     override suspend fun addHistory(command: String) {
-        _history.update { it + command }
+        _history.update { savedHistory ->
+            val match = savedHistory.find { it.first == command }
+            if (match == null) {
+                listOf(HistoryEntry(command, 0)) + savedHistory
+            } else {
+                listOf(HistoryEntry(command, match.second + 1)) + savedHistory.filterNot { it.first == command }
+            }
+        }
     }
+
+    override val history: StateFlow<UserCommandHistory>
+        get() = _history
 
     fun setHistoryFile(file: File) {
         _historyFile.value = file
