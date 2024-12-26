@@ -88,7 +88,7 @@ val timeFlow = flow {
 
 data class EditState(val content: String, val cursor: Int)
 
-fun main() = runBlocking {
+fun main2() = runBlocking {
     val terminal: SystemTerminal = SystemTerminal()
     val output = MutableStateFlow<String>("")
     val scope = CoroutineScope(Dispatchers.Default)
@@ -114,6 +114,7 @@ fun main() = runBlocking {
         }
     }
 }
+
 
 fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>) = launch {
 
@@ -145,7 +146,7 @@ fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>
     }
 }
 
-fun main2() = runBlocking {
+fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
     ShellStateObject.setHistoryFile(getHistoryFile())
@@ -216,23 +217,11 @@ fun main2() = runBlocking {
                 }
             }.runUntilSignal {
                 val channel = Channel<Int>(Channel.UNLIMITED)
-                val keyFlow = channel.receiveAsFlow().shareIn(collectionScope, SharingStarted.Eagerly)
+//                val keyFlow = channel.receiveAsFlow().shareIn(collectionScope, SharingStarted.Eagerly)
+                val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
                     // read until enter pressed
-                    while (true) {
-                        val byte = terminal.read(15)
-                        if (byte >= 0) {
-                            channel.send(byte)
-                        }
-                        when (byte) {
-                            10 -> break
-                            13 -> break
-                            -1 -> {
-                                channel.cancel()
-                                break
-                            }
-                        }
-                    }
+                    readUntilEnter(terminal, channel)
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.LeftArrow::class).collect {
