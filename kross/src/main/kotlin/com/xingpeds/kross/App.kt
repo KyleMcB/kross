@@ -139,6 +139,7 @@ fun main() = runBlocking {
         timeFlow, state.currentDirectory,
         username = username
     )
+    val heldOverOuput = MutableStateFlow("")
     while (true) {
         val collectionScope = CoroutineScope(Dispatchers.Default)
         val processState = MutableStateFlow(ProcessStep.UserCommand)
@@ -152,7 +153,10 @@ fun main() = runBlocking {
         if (promptfunc != null) {
             prompt = promptfunc.call().tojstring()
         }
-        bufferState.emit(EditState("", 0))
+        val heldOutput = heldOverOuput.value
+        val startingBuffer = EditState(heldOutput, heldOutput.length)
+        bufferState.emit(startingBuffer)
+        heldOverOuput.emit("")
         var finished = false
         val terminal = SystemTerminal() {
             if (bufferState.value.content.isBlank()) {
@@ -169,12 +173,21 @@ fun main() = runBlocking {
                 if (finished) {
                     val terminalWidth = terminal.width
 
-                    bordered(borderCharacters = BorderCharacters.CURVED) {
-                        justified(Justification.LEFT, minWidth = terminalWidth - 2) {
-                            textLine(promptState.value.dropLast(2))
-                            textLine(bufferState.value.content)
+                    when (processState.value) {
+                        ProcessStep.UserCommand -> {
+
+                            bordered(borderCharacters = BorderCharacters.CURVED) {
+                                justified(Justification.LEFT, minWidth = terminalWidth - 2) {
+                                    textLine(promptState.value.dropLast(2))
+                                    textLine(bufferState.value.content)
+                                }
+
+                            }
                         }
 
+                        ProcessStep.HistorySearch -> {
+                            // leave nothing behind, this will make the input box looks continuous
+                        }
                     }
                 } else {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
@@ -204,6 +217,8 @@ fun main() = runBlocking {
                 val channel = Channel<Int>(Channel.UNLIMITED)
                 val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
+                    // TODO improve the terminal character list
+                    // alt combo are not even possible with this system
                     readUntilEnter(terminal, channel, listOf(10, 13, 18))
                 }
                 collectionScope.launch {
@@ -323,7 +338,6 @@ fun main() = runBlocking {
             }
 
             ProcessStep.HistorySearch -> {
-                println("should show fzf with history")
                 val fzfScope = CoroutineScope(Dispatchers.Default)
                 val inputPipe = Channel<Int>(Channel.UNLIMITED)
                 val outputPipe = Channel<Int>(Channel.UNLIMITED)
@@ -341,7 +355,7 @@ fun main() = runBlocking {
                         val executor = JavaOSProcess()
                         executor.invoke(
                             "fzf",
-                            args = emptyList(),
+                            args = listOf("--query=${bufferState.value.content}"),
                             pipes = pipes,
                             env = state.environment.value,
                             cwd = state.currentDirectory.value
@@ -351,6 +365,7 @@ fun main() = runBlocking {
                     }
 
                 }.join()
+                heldOverOuput.emit(output.toString().trim())
             }
         }
     }
