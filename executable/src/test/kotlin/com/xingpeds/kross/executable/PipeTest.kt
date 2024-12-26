@@ -14,6 +14,7 @@ import kotlin.time.Duration.Companion.seconds
 
 // TODO clean up printlns
 class PipeTest {
+
     @Test
     fun simpleLuaWriter() = runTest(timeout = 5.seconds) {
         val pipe = Chan()

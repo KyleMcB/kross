@@ -35,17 +35,10 @@ sealed class KeyEvent {
     data object RightArrow : KeyEvent()
 }
 
-fun toKeyEventFlow(input: Flow<Int>): Flow<KeyEvent> {
+fun toKeyEventFlow(channel: Channel<Int>): Flow<KeyEvent> {
     return channelFlow {
-        val channel = Channel<Int>(capacity = Channel.UNLIMITED)
         coroutineScope {
             // 1) Collect upstream input bytes into a Channel<Int>
-            launch {
-                input.collect { byte ->
-                    channel.send(byte)
-                }
-                channel.close()
-            }
 
             // 2) Pull bytes out of the channel and interpret them
             launch {

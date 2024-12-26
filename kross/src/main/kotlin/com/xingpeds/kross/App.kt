@@ -29,6 +29,7 @@ import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.encodeToStream
 import org.luaj.vm2.LuaFunction
@@ -74,18 +75,38 @@ val timeFlow = flow {
     }
 }
 
-//fun main2() = runBlocking {
-//    val main = this
-//    toKeyEventFlow().collect { keyEvent ->
-//        println("pressed key: $keyEvent")
-//        if (keyEvent == KeyEvent.Character("q")) {
-//            cancel()
-//
-//        }
-//    }
-//}
-
 data class EditState(val content: String, val cursor: Int)
+
+fun CoroutineScope.readUntilEnter(terminal: SystemTerminal, output: Channel<Int>) = launch {
+
+    while (true) {
+        try {
+
+            val byte = terminal.read(15)
+            if (byte >= 0) {
+                output.send(byte)
+            }
+            when (byte) {
+                10 -> {
+                    output.close()
+                    break
+                }
+
+                13 -> {
+                    output.close()
+                    break
+                }
+
+                -1 -> {
+                    output.cancel()
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            //bla
+        }
+    }
+}
 
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
@@ -157,7 +178,11 @@ fun main() = runBlocking {
                     }
                 }
             }.runUntilSignal {
-                val keyFlow = toKeyEventFlow(terminal.read()).shareIn(collectionScope, SharingStarted.Eagerly)
+                val channel = Channel<Int>(Channel.UNLIMITED)
+                val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
+                collectionScope.launch {
+                    readUntilEnter(terminal, channel)
+                }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.LeftArrow::class).collect {
                         bufferState.update { (content, cursor) ->
