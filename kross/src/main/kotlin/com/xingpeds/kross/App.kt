@@ -37,6 +37,7 @@ import org.luaj.vm2.LuaValue
 import java.io.File
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import kotlin.system.exitProcess
 import kotlin.system.measureTimeMillis
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
@@ -135,7 +136,15 @@ fun main() = runBlocking {
         }
         bufferState.emit(EditState("", 0))
         var finished = false
-        val terminal = SystemTerminal()
+        val terminal = SystemTerminal() {
+            if (bufferState.value.content.isBlank()) {
+                exitProcess(0)
+            } else {
+                runBlocking {
+                    bufferState.emit(EditState("", 0))
+                }
+            }
+        }
         session(terminal = terminal) {
 
             section {
