@@ -31,7 +31,6 @@ import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
-import kotlinx.serialization.json.encodeToStream
 import org.luaj.vm2.LuaFunction
 import org.luaj.vm2.LuaValue
 import java.io.File
@@ -383,7 +382,7 @@ fun main() = runBlocking {
                 if (bufferState.value.content.isBlank()) continue
                 if (bufferState.value.content.equals("exit", ignoreCase = true)) break
                 val time = measureTimeMillis {
-                    processinput(bufferState.value.content)
+                    processInput(bufferState.value.content)
                 }
                 state.addHistory(bufferState.value.content)
                 val readableTime =
@@ -529,7 +528,7 @@ private fun onKeyPressedKross(
     }
 }
 
-suspend fun processinput(line: String) {
+suspend fun processInput(line: String) {
 
     try {
 
@@ -547,54 +546,19 @@ suspend fun processinput(line: String) {
             }
         }
         val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
-        executor.execute(ast)
+        val returnCodes = executor.execute(ast)
+        println(returnCodes)
     } catch (e: Exception) {
         println("failed to run command: ${e.message}")
-// this should be in debug mode only
-        println(e.stackTraceToString())
+        Log.error(e)
     }
 
-}
-
-fun getHistoryFile(): File {
-    // Get the path to the history file
-    // todo check XDG home first
-    val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history.json"
-    val historyFile = File(historyFilePath)
-
-    // Ensure the parent directories and the file exist
-    if (!historyFile.exists()) {
-        historyFile.parentFile.mkdirs() // Create parent directories if they do not exist
-        historyFile.createNewFile()    // Create the file if it does not exist
-        json.encodeToStream(emptyList<String>(), historyFile.outputStream())
-    }
-
-    return historyFile
 }
 
 fun getCurrentTime(): String {
     val currentTime = LocalTime.now()
     val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     return currentTime.format(formatter)
+
 }
 
-fun String.insertAt(index: Int, string: String): String {
-    if (index !in 0..length) throw IndexOutOfBoundsException("Index $index out of bounds for length $length")
-    return this.substring(0, index) + string + this.substring(index)
-}
-
-fun String.dropAt(index: Int): String {
-    return when (index) {
-        0 -> {
-            this
-        }
-
-        in 1 until length -> {
-            this.substring(0, index - 1) + this.substring(index)
-        }
-
-        else -> {
-            this.dropLast(1)
-        }
-    }
-}
