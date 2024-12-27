@@ -14,10 +14,7 @@ import com.varabyte.kotterx.decorations.bordered
 import com.varabyte.kotterx.text.Justification
 import com.varabyte.kotterx.text.justified
 import com.xingpeds.kross.builtins.BuiltInExecutable
-import com.xingpeds.kross.entities.Pipes
-import com.xingpeds.kross.entities.asOutputStream
-import com.xingpeds.kross.entities.connectTo
-import com.xingpeds.kross.entities.json
+import com.xingpeds.kross.entities.*
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.executableLua.LuaExecutable
@@ -59,14 +56,19 @@ fun LuaValue.toNullable(): LuaValue? {
 fun createPromptState(
     timeFlow: Flow<String>,
     cwdState: StateFlow<File>,
+    gitBranch: StateFlow<String?>,
     username: String
 ): StateFlow<String> {
-    return combine(timeFlow, cwdState) { time, cwdFile ->
+    return combine(timeFlow, cwdState, gitBranch.map { it?.trim() }) { time, cwdFile, branch ->
         val userhome = System.getProperty("user.home")
         val cwd = cwdFile.absolutePath.replace(userhome, "~")
-        "$username $time $cwd> "
+        if (branch.isNullOrBlank().not()) {
+            "$branch\n$username $time $cwd> "
+        } else {
+            "$username $time $cwd> "
+        }
     }.stateIn(
-        scope = CoroutineScope(Dispatchers.Default), // Use appropriate coroutine scope
+        scope = CoroutineScope(Dispatchers.Default), // TODO Use appropriate coroutine scope
         started = SharingStarted.Eagerly,
         initialValue = ""
     )
@@ -126,6 +128,43 @@ enum class ProcessStep {
     TabComplete
 }
 
+fun CoroutineScope.gitBranch(state: MutableStateFlow<String?>) = launch {
+// I want to run a git program and record the output
+//git rev-parse --abbrev-ref HEAD
+    val output = StringBuilder()
+    val exe = JavaOSProcess()
+    val pipe = Chan()
+    val pipes = Pipes(
+        programOutput = pipe
+    )
+    var result = 1
+    coroutineScope {
+        launch {
+            result = exe.invoke(
+                name = "git",
+                args = listOf("rev-parse", "--abbrev-ref", "HEAD"),
+                pipes = pipes,
+                env = ShellStateObject.environment.value,
+                cwd = ShellStateObject.currentDirectory.value
+            )()
+            Log.info("git returned $result")
+            pipe.close()
+        }
+        launch {
+            pipe.connectTo(output.asOutputStream())
+        }
+    }
+    if (result == 0) {
+        val value = output.toString().trim()
+        Log.info("emitting $value")
+        state.emit(value)
+    } else {
+        Log.info("git failed, emitting null")
+        state.emit(null)
+    }
+
+}
+
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
@@ -141,15 +180,18 @@ fun main() = runBlocking {
             listExecutablesOnPath()
         }
     }
+    val gitBranch = MutableStateFlow<String?>(null)
 
     val username = System.getProperty("user.name")
     val promptState = createPromptState(
         timeFlow, state.currentDirectory,
-        username = username
+        username = username,
+        gitBranch = gitBranch,
     )
     val heldOverOuput = MutableStateFlow("")
     while (true) {
         val collectionScope = CoroutineScope(Dispatchers.Default)
+        scope.gitBranch(gitBranch)
         val processState = MutableStateFlow(ProcessStep.UserCommand)
         var historyCursor: Int? = null
         // Prompt the user and read input
@@ -375,7 +417,7 @@ fun main() = runBlocking {
                         val executor = JavaOSProcess()
                         executor.invoke(
                             "fzf",
-                            args = listOf("--query=${bufferState.value.content}"),
+                            args = listOf("--query=${bufferState.value.content}", "-1"),
                             pipes = pipes,
                             env = state.environment.value,
                             cwd = state.currentDirectory.value
@@ -413,7 +455,7 @@ fun main() = runBlocking {
                         val executor = JavaOSProcess()
                         val lastWord = words.lastOrNull()
                         val args = if (lastWord != null) {
-                            listOf("--query=$lastWord")
+                            listOf("--query=$lastWord", "-1")
                         } else emptyList()
                         executor.invoke(
                             "fzf",
