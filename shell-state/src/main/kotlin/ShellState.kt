@@ -34,6 +34,14 @@ object ShellStateObject : ShellState {
 
     private val _environment = MutableStateFlow(System.getenv())
 
+    init {
+        scope.launch {
+            PersistentEnvironment.envState.collect { saved ->
+                _environment.update { it + saved }
+            }
+        }
+    }
+
     override val environment: StateFlow<Map<String, String>>
         get() = _environment
 
