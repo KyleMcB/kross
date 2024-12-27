@@ -547,7 +547,7 @@ suspend fun processInput(line: String) {
         }
         val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
         val returnCodes = executor.execute(ast)
-        println(returnCodes)
+        println("return codes: $returnCodes")
     } catch (e: Exception) {
         println("failed to run command: ${e.message}")
         Log.error(e)
