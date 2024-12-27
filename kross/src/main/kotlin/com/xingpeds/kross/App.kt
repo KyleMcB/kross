@@ -122,7 +122,8 @@ fun CoroutineScope.readUntilEnter(
 
 enum class ProcessStep {
     UserCommand,
-    HistorySearch
+    HistorySearch,
+    TabComplete
 }
 
 fun main() = runBlocking {
@@ -133,6 +134,13 @@ fun main() = runBlocking {
     val initFile = initFile()
     lua.executeFile(initFile)
     val bufferState = MutableStateFlow<EditState>(EditState("", 0))
+    val completions = bufferState.map { (content, cursor) ->
+        // how many "words" are in content
+        val count = content.count { it == ' ' } + 1
+        if (count == 1) {
+            listExecutablesOnPath()
+        }
+    }
 
     val username = System.getProperty("user.name")
     val promptState = createPromptState(
@@ -188,6 +196,10 @@ fun main() = runBlocking {
                         ProcessStep.HistorySearch -> {
                             // leave nothing behind, this will make the input box looks continuous
                         }
+
+                        ProcessStep.TabComplete -> {
+                            // also print nothing
+                        }
                     }
                 } else {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
@@ -219,12 +231,20 @@ fun main() = runBlocking {
                 collectionScope.launch {
                     // TODO improve the terminal character list
                     // alt combo are not even possible with this system
-                    readUntilEnter(terminal, channel, listOf(10, 13, 18))
+                    readUntilEnter(terminal, channel, listOf(10, 13, 18, 9))
                 }
                 collectionScope.launch {
                     keyFlow.filter { it == KeyEvent.Ctrl('R') }.collect {
                         // ctrl-r needs to be terminal like enter
                         processState.emit(ProcessStep.HistorySearch)
+                        signal()
+                        collectionScope.cancel()
+                    }
+                }
+                collectionScope.launch {
+                    keyFlow.filterIsInstance(KeyEvent.Tab::class).collect {
+                        // process state to tab complete
+                        processState.emit(ProcessStep.TabComplete)
                         signal()
                         collectionScope.cancel()
                     }
@@ -366,6 +386,60 @@ fun main() = runBlocking {
 
                 }.join()
                 heldOverOuput.emit(output.toString().trim())
+            }
+
+            ProcessStep.TabComplete -> {
+
+                val fzfScope = CoroutineScope(Dispatchers.Default)
+                val outputPipe = Channel<Int>(Channel.UNLIMITED)
+                val output = StringBuilder()
+                val buffer = bufferState.value.content
+                val words = buffer.split(" ")
+                val candidates = if (words.size == 1) {
+                    listExecutablesOnPath().joinToString(separator = "\n") { it }
+                } else state.currentDirectory.value.list()?.joinToString(separator = "\n") { it }
+                val inputPipe = if (candidates != null) {
+                    Channel<Int>(Channel.UNLIMITED)
+                } else null
+                val pipes = Pipes(programInput = inputPipe, programOutput = outputPipe)
+                fzfScope.launch {
+                    launch {
+                        outputPipe.connectTo(output.asOutputStream())
+                    }
+                    launch {
+                        candidates?.let { inputPipe?.connectTo(it.byteInputStream()) }
+                    }
+                    launch {
+                        val executor = JavaOSProcess()
+                        val lastWord = words.lastOrNull()
+                        val args = if (lastWord != null) {
+                            listOf("--query=$lastWord")
+                        } else emptyList()
+                        executor.invoke(
+                            "fzf",
+                            args = args,
+                            pipes = pipes,
+                            env = state.environment.value,
+                            cwd = state.currentDirectory.value
+                        )
+                        inputPipe?.close()
+                        outputPipe.close()
+                    }
+
+                }.join()
+                // now I need to merge the buffer with the output
+                val outputstring = output.toString().trim()
+                if (outputstring.isBlank().not()) {
+                    if (words.size == 1) {
+                        heldOverOuput.emit(outputstring)
+                    } else {
+                        heldOverOuput.emit(
+                            words.dropLast(1).joinToString(separator = " ") + " " + outputstring
+                        )
+                    }
+                }
+
+//                heldOverOuput.emit(output.toString().trim())
             }
         }
     }
