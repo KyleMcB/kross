@@ -13,16 +13,11 @@ enum class LogLevel {
 }
 
 object Log {
-    private val logFile: File = File("${System.getProperty("user.home")}/.kross/logs/kross.log").apply {
-        mkdirs()
+    private val logFile: File = File(getKrossHomeDirectory(), "logs/kross.log").apply {
+        parentFile.mkdirs()
         createNewFile()
     }
     private val lock = ReentrantLock()
-
-    init {
-        // Ensure the log directory exists
-        logFile.parentFile.mkdirs()
-    }
 
     fun log(level: LogLevel, message: String) {
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(Date())

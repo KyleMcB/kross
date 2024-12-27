@@ -1,20 +1,21 @@
 package com.xingpeds.kross
 
-import com.varabyte.kotter.foundation.input.Keys
-import com.varabyte.kotter.foundation.input.OnKeyPressedScope
 import com.varabyte.kotter.foundation.runUntilSignal
 import com.varabyte.kotter.foundation.session
 import com.varabyte.kotter.foundation.text.invert
 import com.varabyte.kotter.foundation.text.text
 import com.varabyte.kotter.foundation.text.textLine
-import com.varabyte.kotter.runtime.RunScope
+import com.varabyte.kotter.runtime.internal.ansi.Ansi.Csi.Codes
 import com.varabyte.kotter.terminal.system.SystemTerminal
 import com.varabyte.kotterx.decorations.BorderCharacters
 import com.varabyte.kotterx.decorations.bordered
 import com.varabyte.kotterx.text.Justification
 import com.varabyte.kotterx.text.justified
 import com.xingpeds.kross.builtins.BuiltInExecutable
-import com.xingpeds.kross.entities.*
+import com.xingpeds.kross.entities.Log
+import com.xingpeds.kross.entities.Pipes
+import com.xingpeds.kross.entities.asOutputStream
+import com.xingpeds.kross.entities.connectTo
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.executableLua.LuaExecutable
@@ -31,7 +32,6 @@ import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
-import kotlinx.serialization.json.encodeToStream
 import org.luaj.vm2.LuaFunction
 import org.luaj.vm2.LuaValue
 import java.io.File
@@ -128,43 +128,6 @@ enum class ProcessStep {
     TabComplete
 }
 
-fun CoroutineScope.gitBranch(state: MutableStateFlow<String?>) = launch {
-// I want to run a git program and record the output
-//git rev-parse --abbrev-ref HEAD
-    val output = StringBuilder()
-    val exe = JavaOSProcess()
-    val pipe = Chan()
-    val pipes = Pipes(
-        programOutput = pipe
-    )
-    var result = 1
-    coroutineScope {
-        launch {
-            result = exe.invoke(
-                name = "git",
-                args = listOf("rev-parse", "--abbrev-ref", "HEAD"),
-                pipes = pipes,
-                env = ShellStateObject.environment.value,
-                cwd = ShellStateObject.currentDirectory.value
-            )()
-            Log.info("git returned $result")
-            pipe.close()
-        }
-        launch {
-            pipe.connectTo(output.asOutputStream())
-        }
-    }
-    if (result == 0) {
-        val value = output.toString().trim()
-        Log.info("emitting $value")
-        state.emit(value)
-    } else {
-        Log.info("git failed, emitting null")
-        state.emit(null)
-    }
-
-}
-
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
@@ -207,7 +170,8 @@ fun main() = runBlocking {
         val startingBuffer = EditState(heldOutput, heldOutput.length)
         bufferState.emit(startingBuffer)
         heldOverOuput.emit("")
-        var finished = false
+//        var finished = false
+        val finished = MutableStateFlow(false)
         val terminal = SystemTerminal() {
             if (bufferState.value.content.isBlank()) {
                 exitProcess(0)
@@ -220,7 +184,7 @@ fun main() = runBlocking {
         session(terminal = terminal) {
 
             section {
-                if (finished) {
+                if (finished.value) {
                     val terminalWidth = terminal.width
 
                     when (processState.value) {
@@ -237,10 +201,16 @@ fun main() = runBlocking {
 
                         ProcessStep.HistorySearch -> {
                             // leave nothing behind, this will make the input box looks continuous
+                            // FIXME I don't know what there is a line printed when the section is left
+                            // for now I am manually moving the cursor up one line to compensate
+                            terminal.write(Codes.Keys.UP.toFullEscapeCode())
                         }
 
                         ProcessStep.TabComplete -> {
-                            // also print nothing
+                            // leave nothing behind, this will make the input box looks continuous
+                            // FIXME I don't know what there is a line printed when the section is left
+                            // for now I am manually moving the cursor up one line to compensate
+                            terminal.write(Codes.Keys.UP.toFullEscapeCode())
                         }
                     }
                 } else {
@@ -268,6 +238,7 @@ fun main() = runBlocking {
                     }
                 }
             }.runUntilSignal {
+
                 val channel = Channel<Int>(Channel.UNLIMITED)
                 val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
@@ -367,7 +338,7 @@ fun main() = runBlocking {
                 }
                 collectionScope.launch {
                     promptState.onCompletion {
-                        finished = true
+                        finished.emit(true)
                         rerender()
                     }.collect {
                         rerender()
@@ -383,7 +354,7 @@ fun main() = runBlocking {
                 if (bufferState.value.content.isBlank()) continue
                 if (bufferState.value.content.equals("exit", ignoreCase = true)) break
                 val time = measureTimeMillis {
-                    processinput(bufferState.value.content)
+                    processInput(bufferState.value.content)
                 }
                 state.addHistory(bufferState.value.content)
                 val readableTime =
@@ -480,8 +451,6 @@ fun main() = runBlocking {
                         )
                     }
                 }
-
-//                heldOverOuput.emit(output.toString().trim())
             }
         }
     }
@@ -489,47 +458,7 @@ fun main() = runBlocking {
     scope.cancel()
 }
 
-private fun onKeyPressedKross(
-    onKeyPressedScope: OnKeyPressedScope,
-    collectionScope: CoroutineScope,
-    runScope: RunScope,
-    bufferState: MutableStateFlow<String>
-) {
-    when (onKeyPressedScope.key) {
-        Keys.ENTER -> {
-            collectionScope.cancel()
-            runScope.signal()
-        }
-
-
-        Keys.BACKSPACE -> {
-            if (bufferState.value.isNotBlank()) {
-                bufferState.update {
-                    it.dropLast(1)
-                }
-            }
-        }
-
-        Keys.ESC -> {}
-        Keys.UP -> {}
-        Keys.DOWN -> {}
-        Keys.LEFT -> {}
-        Keys.RIGHT -> {}
-        Keys.HOME -> {}
-        Keys.END -> {}
-        Keys.DELETE -> {}
-        Keys.TAB -> {}
-        Keys.INSERT -> {}
-        Keys.PAGE_UP -> {}
-        Keys.PAGE_DOWN -> {}
-
-        else -> bufferState.update {
-            it + onKeyPressedScope.key
-        }
-    }
-}
-
-suspend fun processinput(line: String) {
+suspend fun processInput(line: String) {
 
     try {
 
@@ -547,54 +476,19 @@ suspend fun processinput(line: String) {
             }
         }
         val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
-        executor.execute(ast)
+        val returnCodes = executor.execute(ast)
+        println("return codes: $returnCodes")
     } catch (e: Exception) {
         println("failed to run command: ${e.message}")
-// this should be in debug mode only
-        println(e.stackTraceToString())
+        Log.error(e)
     }
 
-}
-
-fun getHistoryFile(): File {
-    // Get the path to the history file
-    // todo check XDG home first
-    val historyFilePath = "${System.getProperty("user.home")}/.config/kross/data/history.json"
-    val historyFile = File(historyFilePath)
-
-    // Ensure the parent directories and the file exist
-    if (!historyFile.exists()) {
-        historyFile.parentFile.mkdirs() // Create parent directories if they do not exist
-        historyFile.createNewFile()    // Create the file if it does not exist
-        json.encodeToStream(emptyList<String>(), historyFile.outputStream())
-    }
-
-    return historyFile
 }
 
 fun getCurrentTime(): String {
     val currentTime = LocalTime.now()
     val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     return currentTime.format(formatter)
+
 }
 
-fun String.insertAt(index: Int, string: String): String {
-    if (index !in 0..length) throw IndexOutOfBoundsException("Index $index out of bounds for length $length")
-    return this.substring(0, index) + string + this.substring(index)
-}
-
-fun String.dropAt(index: Int): String {
-    return when (index) {
-        0 -> {
-            this
-        }
-
-        in 1 until length -> {
-            this.substring(0, index - 1) + this.substring(index)
-        }
-
-        else -> {
-            this.dropLast(1)
-        }
-    }
-}

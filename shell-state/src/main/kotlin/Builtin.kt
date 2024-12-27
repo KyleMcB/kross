@@ -34,8 +34,15 @@ object Builtin {
             -1
         }
     }
+    val setEnvPersistent: BuiltinFun = { args: List<String> ->
+        val name = args.first()
+        val value = args.getOrNull(1) ?: ""
+        PersistentEnvironment.set(name, value)
+        0
+    }
     val builtinFuns: Map<String, BuiltinFun> = mapOf(
         "cd" to cd,
         "setenv" to setenv,
+        "setenvp" to setEnvPersistent,
     )
 }
