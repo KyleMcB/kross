@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.*
 import org.luaj.vm2.LuaFunction
 import org.luaj.vm2.LuaValue
 import java.io.File
+import java.nio.file.Files
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlin.system.exitProcess
@@ -125,7 +126,8 @@ fun CoroutineScope.readUntilEnter(
 enum class ProcessStep {
     UserCommand,
     HistorySearch,
-    TabComplete
+    TabComplete,
+    TypeInEditor
 }
 
 fun main() = runBlocking {
@@ -212,6 +214,13 @@ fun main() = runBlocking {
                             // for now I am manually moving the cursor up one line to compensate
                             terminal.write(Codes.Keys.UP.toFullEscapeCode())
                         }
+
+                        ProcessStep.TypeInEditor -> {
+                            // leave nothing behind, this will make the input box looks continuous
+                            // FIXME I don't know what there is a line printed when the section is left
+                            // for now I am manually moving the cursor up one line to compensate
+                            terminal.write(Codes.Keys.UP.toFullEscapeCode())
+                        }
                     }
                 } else {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
@@ -244,7 +253,15 @@ fun main() = runBlocking {
                 collectionScope.launch {
                     // TODO improve the terminal character list
                     // alt combo are not even possible with this system
-                    readUntilEnter(terminal, channel, listOf(10, 13, 18, 9))
+                    readUntilEnter(terminal, channel, listOf(10, 13, 18, 9, 15))
+                }
+                collectionScope.launch {
+
+                    keyFlow.filter { it == KeyEvent.Ctrl('O') }.collect {
+                        processState.emit(ProcessStep.TypeInEditor)
+                        signal()
+                        collectionScope.cancel()
+                    }
                 }
                 collectionScope.launch {
                     keyFlow.filter { it == KeyEvent.Ctrl('R') }.collect {
@@ -451,6 +468,41 @@ fun main() = runBlocking {
                         )
                     }
                 }
+            }
+
+            ProcessStep.TypeInEditor -> {
+                //create a temp file
+                // Get the EDITOR environment variable or fallback to 'vi'
+                val editor = state.environment.value["EDITOR"] ?: "vi"
+
+                // Create a temporary file
+                val tempFile = Files.createTempFile("kross-editor-", ".tmp").toFile()
+                tempFile.writeText(bufferState.value.content)
+                tempFile.deleteOnExit() // Ensure the file gets deleted when the program exits
+
+                val userInput = try {
+                    // Open the editor pointing to the temporary file
+                    val process = ProcessBuilder(editor, tempFile.absolutePath)
+                        .inheritIO() // Use inheritIO to allow the editor to take over the terminal
+                        .start()
+
+                    // Wait for the editor process to finish
+                    val exitCode = process.waitFor()
+                    if (exitCode != 0) {
+                        println("Editor exited with error code $exitCode")
+                        null
+                    }
+
+                    // Read the content of the temporary file
+                    tempFile.readText().trim().takeIf { it.isNotEmpty() }
+                } catch (e: Exception) {
+                    println("Failed to open editor: ${e.message}")
+                    null
+                } finally {
+                    // Clean up the temporary file
+                    tempFile.delete()
+                }
+                heldOverOuput.emit(userInput ?: bufferState.value.content)
             }
         }
     }
