@@ -34,9 +34,10 @@ object Log {
         }
     }
 
-    fun log(level: LogLevel, exception: Exception) {
+    fun log(level: LogLevel, exception: Exception, message: String? = null) {
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(Date())
         val logMessage = buildString {
+            message?.let { appendLine(message) }
             append("[$timestamp] [${level.name}] Exception: ${exception.message}")
             append("\n")
             append(exception.stackTraceToString())
@@ -59,6 +60,7 @@ object Log {
     fun debug(message: String) = log(LogLevel.DEBUG, message)
 
     fun error(exception: Exception) = log(LogLevel.ERROR, exception)
+    fun error(message: String, exception: Exception) = log(LogLevel.ERROR, exception, message)
     fun debug(exception: Exception) = log(LogLevel.DEBUG, exception)
 }
 
@@ -66,4 +68,5 @@ object Log {
 fun Any?.info(prompt: String) = Log.info("$prompt: ${this.toString()}")
 fun Any?.warn(prompt: String) = Log.warn("$prompt: ${this.toString()}")
 fun Any?.error(prompt: String) = Log.error("$prompt: ${this.toString()}")
+fun Exception.error(prompt: String) = Log.error(message = prompt, exception = this)
 fun Any?.debug(prompt: String) = Log.debug("$prompt: ${this.toString()}")

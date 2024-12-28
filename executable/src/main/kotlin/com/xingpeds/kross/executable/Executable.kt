@@ -2,6 +2,7 @@ package com.xingpeds.kross.executable
 
 import com.xingpeds.kross.entities.Pipes
 import com.xingpeds.kross.entities.connectTo
+import com.xingpeds.kross.entities.error
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
@@ -65,22 +66,32 @@ class JavaOSProcess : Executable {
             val programInput = pipes.programInput
             launch {
                 if (programInput != null) {
-                    programInput.connectTo(process.outputStream, autoClose = false)
-                    log("$name input successfully connected to process")
+                    try {
+
+                        programInput.connectTo(process.outputStream, autoClose = false)
+                    } catch (e: Exception) {
+                        e.error("$name failed to connect to program input")
+                    }
                 }
             }
             launch {
                 val programOutput = pipes.programOutput
                 if (programOutput != null) {
-                    programOutput.connectTo(process.inputStream, autoClose = false)
-                    log("$name output successfully connected to process")
+                    try {
+                        programOutput.connectTo(process.inputStream, autoClose = false)
+                    } catch (e: Exception) {
+                        e.error("$name failed to connect to program output")
+                    }
                 }
             }
             launch {
                 val programError = pipes.programError
                 if (programError != null) {
-                    programError.connectTo(process.errorStream, autoClose = false)
-                    log("$name error successfully connected to process")
+                    try {
+                        programError.connectTo(process.errorStream, autoClose = false)
+                    } catch (e: Exception) {
+                        e.error("$name failed to connect to program error")
+                    }
                 }
             }
         }.join()
