@@ -38,6 +38,8 @@ import java.io.File
 import java.nio.file.Files
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.system.exitProcess
 import kotlin.system.measureTimeMillis
 import kotlin.time.DurationUnit
@@ -172,7 +174,7 @@ fun main() = runBlocking {
         val startingBuffer = EditState(heldOutput, heldOutput.length)
         bufferState.emit(startingBuffer)
         heldOverOuput.emit("")
-//        var finished = false
+        // TODO finished could be replaced by a nullable processStep state
         val finished = MutableStateFlow(false)
         val terminal = SystemTerminal() {
             if (bufferState.value.content.isBlank()) {
@@ -191,7 +193,6 @@ fun main() = runBlocking {
 
                     when (processState.value) {
                         ProcessStep.UserCommand -> {
-
                             bordered(borderCharacters = BorderCharacters.CURVED) {
                                 justified(Justification.LEFT, minWidth = terminalWidth - 2) {
                                     textLine(promptState.value.dropLast(2))
@@ -225,7 +226,6 @@ fun main() = runBlocking {
                 } else {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
                         justified(Justification.LEFT, minWidth = terminal.width - 2) {
-//                            textLine("${promptState.value} ${bufferState.value}")
                             text(promptState.value)
                             val bufferSnapShot = bufferState.value.content
                             val cursorIndex = bufferState.value.cursor
@@ -260,6 +260,7 @@ fun main() = runBlocking {
                     keyFlow.filter { it == KeyEvent.Ctrl('O') }.collect {
                         finished.emit(true)
                         processState.emit(ProcessStep.TypeInEditor)
+                        rerender()
                         signal()
                         collectionScope.cancel()
                     }
@@ -268,6 +269,8 @@ fun main() = runBlocking {
                     keyFlow.filter { it == KeyEvent.Ctrl('R') }.collect {
                         // ctrl-r needs to be terminal like enter
                         processState.emit(ProcessStep.HistorySearch)
+                        finished.emit(true)
+                        rerender()
                         signal()
                         collectionScope.cancel()
                     }
@@ -275,17 +278,16 @@ fun main() = runBlocking {
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.Tab::class).collect {
                         // process state to tab complete
+                        finished.emit(true)
                         processState.emit(ProcessStep.TabComplete)
+                        rerender()
                         signal()
                         collectionScope.cancel()
                     }
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.UpArrow::class).collect {
-                        historyCursor = historyCursor?.plus(1) ?: 0
-                        if (historyCursor!! > state.history.value.lastIndex) {
-                            historyCursor = state.history.value.lastIndex
-                        }
+                        historyCursor = min(historyCursor?.plus(1) ?: 0, state.history.value.lastIndex)
                         val content = state.history.value[historyCursor!!].first
                         bufferState.emit(
                             EditState(content, content.length)
@@ -294,10 +296,7 @@ fun main() = runBlocking {
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.DownArrow::class).collect {
-                        historyCursor = historyCursor?.minus(1) ?: 0
-                        if (historyCursor!! < 0) {
-                            historyCursor = 0
-                        }
+                        historyCursor = max(historyCursor?.minus(1) ?: 0, 0)
                         val content = state.history.value[historyCursor!!].first
                         bufferState.emit(
                             EditState(content, content.length)
@@ -335,13 +334,6 @@ fun main() = runBlocking {
                         }
                     }
                 }
-//                collectionScope.launch {
-//                    keyFlow.filterIsInstance(KeyEvent.Unknown::class).collect { unknown ->
-//                        bufferState.update {
-//                            it + unknown.code
-//                        }
-//                    }
-//                }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.CR::class).collect {
                         // for now we stop input mode and process

@@ -1,6 +1,9 @@
 package com.xingpeds.kross
 
-import com.xingpeds.kross.entities.*
+import com.xingpeds.kross.entities.Chan
+import com.xingpeds.kross.entities.Pipes
+import com.xingpeds.kross.entities.asOutputStream
+import com.xingpeds.kross.entities.connectTo
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.CoroutineScope
@@ -27,7 +30,6 @@ fun CoroutineScope.gitBranch(state: MutableStateFlow<String?>) = launch {
                 env = ShellStateObject.environment.value,
                 cwd = ShellStateObject.currentDirectory.value
             )()
-            Log.info("git returned $result")
             pipe.close()
         }
         launch {
@@ -36,10 +38,8 @@ fun CoroutineScope.gitBranch(state: MutableStateFlow<String?>) = launch {
     }
     if (result == 0) {
         val value = output.toString().trim()
-        Log.info("emitting $value")
         state.emit(value)
     } else {
-        Log.info("git failed, emitting null")
         state.emit(null)
     }
 
