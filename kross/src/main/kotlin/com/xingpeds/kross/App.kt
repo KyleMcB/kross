@@ -258,6 +258,7 @@ fun main() = runBlocking {
                 collectionScope.launch {
 
                     keyFlow.filter { it == KeyEvent.Ctrl('O') }.collect {
+                        finished.emit(true)
                         processState.emit(ProcessStep.TypeInEditor)
                         signal()
                         collectionScope.cancel()
