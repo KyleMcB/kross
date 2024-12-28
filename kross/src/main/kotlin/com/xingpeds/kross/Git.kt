@@ -7,6 +7,7 @@ import com.xingpeds.kross.entities.connectTo
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -17,8 +18,11 @@ fun CoroutineScope.gitBranch(state: MutableStateFlow<String?>) = launch {
     val output = StringBuilder()
     val exe = JavaOSProcess()
     val pipe = Chan()
+    // git prints an error in every non git dir. so we throw the error output into a channel and throw it away
+    val errorPipe = Channel<Int>(Channel.UNLIMITED)
     val pipes = Pipes(
-        programOutput = pipe
+        programOutput = pipe,
+        programError = errorPipe,
     )
     var result = 1
     coroutineScope {
@@ -31,6 +35,7 @@ fun CoroutineScope.gitBranch(state: MutableStateFlow<String?>) = launch {
                 cwd = ShellStateObject.currentDirectory.value
             )()
             pipe.close()
+            errorPipe.close()
         }
         launch {
             pipe.connectTo(output.asOutputStream())
