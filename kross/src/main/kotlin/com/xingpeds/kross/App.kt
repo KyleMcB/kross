@@ -337,6 +337,8 @@ fun main() = runBlocking {
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.CR::class).collect {
                         // for now we stop input mode and process
+                        finished.emit(true)
+                        rerender()
                         signal()
                         collectionScope.cancel()
                     }
