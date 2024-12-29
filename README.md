@@ -65,6 +65,18 @@ Alpha build, the lua support barely exists and will be dramatically overhauled.
 * A proper tab completion system. I'm thinking of building something that can read fish completions.
 * write lua on the repl part of the shell.
 
+## Installation
+
+For now, just homebrew.
+
+```shell
+brew tap KyleMcB/kross
+brew install kross
+```
+
+Well you could also build from source. Note you need to download my fork of the kotter library and have it nested
+in the kross repo. (Not ideal, will fix later.)
+
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
