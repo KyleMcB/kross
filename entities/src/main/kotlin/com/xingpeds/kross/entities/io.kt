@@ -17,19 +17,11 @@ class SupervisorChannel(private val channel: Channel<Int> = Channel(Channel.UNLI
 }
 
 suspend fun Channel<Int>.connectTo(output: OutputStream, name: String? = null) {
-    // I want to log information about the output stream
     val channel = this
     output.use {
-        if (name != null) name.info("$name channel to output stream start")
         for (byte in this@connectTo) {
-            // this won't stop until the channel is closed
-            name?.info("$name recieved $byte over channel")
             output.write(byte)
-//            if (byte == -1) {
-//                break
-//            }
         }
-        if (name != null) name.info("$name channel to output stream ended")
     }
 }
 
@@ -69,14 +61,12 @@ suspend fun Channel<Int>.connectTo(input: InputStream, name: String? = null) {
     input.use {
         while (channel.isClosedForSend.not()) {
             val byte = input.read()
-            name?.let { Log.info("$name sent $byte over channel") }
             if (byte == -1) {
                 channel.close()
                 break
             }
             channel.send(byte)
         }
-        name?.let { Log.info("$name channel to input stream ended") }
     }
 }
 
