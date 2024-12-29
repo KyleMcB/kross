@@ -122,7 +122,15 @@ class Executor(
                 when (arg) {
                     is AST.Argument.CommandSubstitution -> exeCommandSub(arg)
                     is AST.Argument.VariableSubstitution -> this.shellState.environment.value[arg.variableName] ?: ""
-                    is AST.Argument.WordArgument -> arg.value
+                    // FIXME I just found out the shell is responsible for text replacing the ~ with the home dire
+                    // not sure if this is the right place for that
+                    is AST.Argument.WordArgument -> {
+                        val text = arg.value
+                        if (text.startsWith("~")) {
+                            text.replaceFirst("~", System.getProperty("user.home"))
+                        } else
+                            arg.value
+                    }
                 }
             }
             executable(
