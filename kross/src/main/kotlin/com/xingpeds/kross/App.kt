@@ -129,7 +129,8 @@ enum class ProcessStep {
     UserCommand,
     HistorySearch,
     TabComplete,
-    TypeInEditor
+    TypeInEditor,
+    FindFile
 }
 
 fun main() = runBlocking {
@@ -222,6 +223,13 @@ fun main() = runBlocking {
                             // for now I am manually moving the cursor up one line to compensate
                             terminal.write(Codes.Keys.UP.toFullEscapeCode())
                         }
+
+                        ProcessStep.FindFile -> {
+                            // leave nothing behind, this will make the input box looks continuous
+                            // FIXME I don't know what there is a line printed when the section is left
+                            // for now I am manually moving the cursor up one line to compensate
+                            terminal.write(Codes.Keys.UP.toFullEscapeCode())
+                        }
                     }
                 } else {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
@@ -253,7 +261,16 @@ fun main() = runBlocking {
                 collectionScope.launch {
                     // TODO improve the terminal character list
                     // alt combo are not even possible with this system
-                    readUntilEnter(terminal, channel, listOf(10, 13, 18, 9, 15))
+                    readUntilEnter(terminal, channel, listOf(10, 13, 18, 9, 15, 6))
+                }
+                collectionScope.launch {
+                    keyFlow.filter { it == KeyEvent.Ctrl('F') }.collect {
+                        finished.emit(true)
+                        processState.emit(ProcessStep.FindFile)
+                        rerender()
+                        signal()
+                        collectionScope.cancel()
+                    }
                 }
                 collectionScope.launch {
 
@@ -498,6 +515,48 @@ fun main() = runBlocking {
                     tempFile.delete()
                 }
                 heldOverOuput.emit(userInput ?: bufferState.value.content)
+            }
+
+            ProcessStep.FindFile -> {
+
+                val fzfScope = CoroutineScope(Dispatchers.Default)
+                val outputPipe = Channel<Int>(Channel.UNLIMITED)
+                val output = StringBuilder()
+                val buffer = bufferState.value.content
+                val words = buffer.split(" ")
+                val pipes = Pipes(programOutput = outputPipe)
+                fzfScope.launch {
+                    launch {
+                        outputPipe.connectTo(output.asOutputStream())
+                    }
+                    launch {
+                        val executor = JavaOSProcess()
+                        val lastWord = words.lastOrNull()
+                        val args = if (lastWord != null) {
+                            listOf("--query=$lastWord", "-1")
+                        } else emptyList()
+                        executor.invoke(
+                            "fzf",
+                            args = args,
+                            pipes = pipes,
+                            env = state.environment.value,
+                            cwd = state.currentDirectory.value
+                        )
+                        outputPipe.close()
+                    }
+
+                }.join()
+                // now I need to merge the buffer with the output
+                val outputstring = output.toString().trim()
+                if (outputstring.isBlank().not()) {
+                    if (words.size == 1) {
+                        heldOverOuput.emit(outputstring)
+                    } else {
+                        heldOverOuput.emit(
+                            words.dropLast(1).joinToString(separator = " ") + " " + outputstring
+                        )
+                    }
+                }
             }
         }
     }
