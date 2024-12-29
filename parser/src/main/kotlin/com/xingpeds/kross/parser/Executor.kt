@@ -60,13 +60,15 @@ class Executor(
             var returnCode = 99
             coroutineScope {
                 launch {
+                    require(pipe.isClosedForSend.not()) { " pipe is closed before first program to output" }
                     val first = exeSimpleCommand(commands.first(), pipes.copy(programOutput = pipe))
-                    pipe.close()
                 }
                 launch {
+                    require(pipe.isClosedForSend.not()) { " pipe is closed before second program to input" }
                     returnCode = exeSimpleCommand(commands.last(), pipes.copy(programInput = pipe))
                 }
-            }
+            }.join()
+            pipe.close()
             return returnCode
         } else {
             coroutineScope {
@@ -78,18 +80,14 @@ class Executor(
                             val pipe = Chan()
                             pipelist.add(pipe)
                             jobs += launch {
-                                Log.debug("first command: ${command.name.value} started")
                                 exeSimpleCommand(command, pipes.copy(programOutput = pipe))
-                                Log.debug("first command: ${command.name.value} ended")
                             }
                         }
 
                         commands.lastIndex -> {
                             yield()
                             val previousPipe = pipelist.last()
-                            Log.debug("last command: ${command.name.value} exe start")
                             val code = exeSimpleCommand(command, pipes.copy(programInput = previousPipe))
-                            Log.debug("last command: ${command.name.value} exe finished closing pipe")
                             jobs.forEach { it.join() }
                             pipelist.forEach { it.close() }
                             return@coroutineScope code
@@ -103,12 +101,10 @@ class Executor(
                             val pipe = Chan()
                             pipelist.add(pipe)
                             jobs += launch {
-                                Log.debug("middle ${command.name.value} start")
                                 exeSimpleCommand(
                                     command,
                                     pipes.copy(programOutput = pipe, programInput = previousPipe)
                                 )
-                                Log.debug("middle ${command.name.value} end")
                             }
                         }
                     }
@@ -145,18 +141,29 @@ class Executor(
     private suspend fun exeCommandSub(arg: AST.Argument.CommandSubstitution): String {
         val output = StringBuilder()
         val pipe = SupervisorChannel()
+        val inPipe = Chan()
+        inPipe.close()
         coroutineScope {
             launch {
-
                 val executor =
-                    Executor(cwd, makeExecutable, shellState = shellState, pipes = Pipes(programOutput = pipe))
-                executor.execute(arg.commandLine)
+                    Executor(
+                        cwd,
+                        makeExecutable,
+                        shellState = shellState,
+                        pipes = Pipes(programOutput = pipe, programInput = inPipe)
+                    )
+                val codes = executor.execute(arg.commandLine)
+                results.addAll(codes)
+                codes.debug("subcommand return codes")
                 pipe.superClose()
             }
             launch {
-                pipe.connectTo(output.asOutputStream())
+                pipe.connectTo(output.asOutputStream(), name = "subcommand output pipe")
+
             }
         }
+        Log.info("return subcommand")
+
         return output.toString().trim()
     }
 }
