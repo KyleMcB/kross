@@ -7,30 +7,22 @@ import org.luaj.vm2.io.LuaWriter
 import java.io.InputStream
 import java.io.OutputStream
 
-private fun log(any: Any) = Unit//println("IO: $any")
 
-fun Chan() = Channel<Int>(16) { num -> log("UNSENT $num") }
+fun Chan() = Channel<Int>(Channel.UNLIMITED) { num -> Log.error("UNSENT $num") }
 
 
-class SupervisorChannel(private val channel: Channel<Int> = Channel(16)) : Channel<Int> by channel {
+class SupervisorChannel(private val channel: Channel<Int> = Channel(Channel.UNLIMITED)) : Channel<Int> by channel {
     override fun close(cause: Throwable?): Boolean = false
     fun superClose() = channel.close()
 }
 
-suspend fun Channel<Int>.connectTo(output: OutputStream, autoClose: Boolean = true) {
+suspend fun Channel<Int>.connectTo(output: OutputStream, name: String? = null) {
     val channel = this
     output.use {
         for (byte in this@connectTo) {
-            // this won't stop until the channel is closed
-            log("writing $byte")
             output.write(byte)
-            if (byte == -1) {
-                break
-            }
         }
-        log("exit write loop")
     }
-    if (autoClose) channel.close().also { log("channel closed after writing") }
 }
 
 fun Channel<Int>.asLuaBinInput(): LuaBinInput {
@@ -64,20 +56,18 @@ fun Channel<Int>.asLuaWriter(): LuaWriter {
 }
 
 
-suspend fun Channel<Int>.connectTo(input: InputStream, autoClose: Boolean = true) {
+suspend fun Channel<Int>.connectTo(input: InputStream, name: String? = null) {
     val channel = this
     input.use {
         while (channel.isClosedForSend.not()) {
             val byte = input.read()
             if (byte == -1) {
-                if (autoClose) channel.close()
+                channel.close()
                 break
             }
             channel.send(byte)
         }
-        log("exit read loop")
     }
-    if (autoClose) channel.close().also { log("channel closed after reading") }
 }
 
 fun StringBuilder.asOutputStream(): OutputStream = object : OutputStream() {

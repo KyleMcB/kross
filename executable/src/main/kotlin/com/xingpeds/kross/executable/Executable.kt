@@ -1,14 +1,15 @@
 package com.xingpeds.kross.executable
 
+import com.xingpeds.kross.entities.Log
 import com.xingpeds.kross.entities.Pipes
 import com.xingpeds.kross.entities.connectTo
+import com.xingpeds.kross.entities.error
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
 
 typealias ExecutableResult = suspend () -> Int
 
-private fun log(any: Any) = Unit// println("Executable: $any")
 interface Executable {
 
     suspend operator fun invoke(
@@ -29,58 +30,59 @@ class JavaOSProcess : Executable {
         env: Map<String, String>,
         cwd: File
     ): ExecutableResult {
-        log("Starting JavaOSProcess.invoke with parameters: name=$name, args=$args, pipes=$pipes,  cwd=$cwd")
 
-        log("Setting up $name with command: ${listOf(name) + args}")
         val pb = ProcessBuilder(listOf(name) + args)
         pb.directory(cwd)
-        log("$name working directory set to: ${pb.directory()}")
         pb.environment().clear()
-        log("$name environment cleared")
         pb.environment().putAll(env)
         if (pipes.programInput != null) {
             pb.redirectInput(ProcessBuilder.Redirect.PIPE)
-            log("$name input redirected to PIPE")
+            Log.info("$name redirecting input to process")
         } else {
             pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
-            log("$name input redirected to INHERIT")
         }
         if (pipes.programOutput != null) {
+            Log.info("$name redirecting output to process")
             pb.redirectOutput(ProcessBuilder.Redirect.PIPE)
-            log("$name output redirected to PIPE")
         } else {
             pb.redirectOutput(ProcessBuilder.Redirect.INHERIT)
-            log("$name output redirected to INHERIT")
         }
         if (pipes.programError != null) {
+            Log.info("$name redirecting error to process")
             pb.redirectError(ProcessBuilder.Redirect.PIPE)
-            log("$name error redirected to PIPE")
         } else {
             pb.redirectError(ProcessBuilder.Redirect.INHERIT)
-            log("$name error redirected to INHERIT")
         }
         val process = pb.start()
-        log("Process started successfully")
         coroutineScope {
-            val programInput = pipes.programInput
             launch {
-                if (programInput != null) {
-                    programInput.connectTo(process.outputStream, autoClose = false)
-                    log("$name input successfully connected to process")
+                pipes.programInput?.let { programInput ->
+                    try {
+                        val out = process.outputStream
+                        Log.info("program input of $name is ${out.javaClass.simpleName}")
+                        programInput.connectTo(process.outputStream, name = name)
+                    } catch (e: Exception) {
+                        e.error("$name failed to connect to program input")
+                    }
                 }
             }
             launch {
-                val programOutput = pipes.programOutput
-                if (programOutput != null) {
-                    programOutput.connectTo(process.inputStream, autoClose = false)
-                    log("$name output successfully connected to process")
+                pipes.programOutput?.let { programOutput ->
+                    try {
+                        programOutput.connectTo(process.inputStream, name = name)
+                    } catch (e: Exception) {
+                        e.error("$name failed to connect to program output")
+                    }
                 }
             }
             launch {
                 val programError = pipes.programError
                 if (programError != null) {
-                    programError.connectTo(process.errorStream, autoClose = false)
-                    log("$name error successfully connected to process")
+                    try {
+                        programError.connectTo(process.errorStream)
+                    } catch (e: Exception) {
+                        e.error("$name failed to connect to program error")
+                    }
                 }
             }
         }.join()
@@ -90,7 +92,6 @@ class JavaOSProcess : Executable {
             pipes.programOutput?.close()
             pipes.programError?.close()
             process.destroy()
-            log("$name exited with code: $exitCode")
             exitCode
         }
     }
