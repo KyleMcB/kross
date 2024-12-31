@@ -133,6 +133,8 @@ enum class ProcessStep {
     FindFile
 }
 
+val ctrlKeyMap: MutableMap<Char, suspend () -> Unit> = mutableMapOf()
+
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
@@ -158,6 +160,10 @@ fun main() = runBlocking {
     )
     val heldOverOuput = MutableStateFlow("")
     while (true) {
+        val restartListeningSignal = MutableSharedFlow<Unit>()
+        val restartListening = suspend {
+            restartListeningSignal.emit(Unit)
+        }
         val collectionScope = CoroutineScope(Dispatchers.Default)
         scope.gitBranch(gitBranch)
         val processState = MutableStateFlow(ProcessStep.UserCommand)
@@ -261,17 +267,62 @@ fun main() = runBlocking {
                 collectionScope.launch {
                     // TODO improve the terminal character list
                     // alt combo are not even possible with this system
-                    readUntilEnter(terminal, channel, listOf(10, 13, 18, 9, 15, 6))
-                }
-                collectionScope.launch {
-                    keyFlow.filter { it == KeyEvent.Ctrl('F') }.collect {
-                        finished.emit(true)
-                        processState.emit(ProcessStep.FindFile)
-                        rerender()
-                        signal()
-                        collectionScope.cancel()
+//                    readUntilEnter(terminal, channel, listOf(10, 13, 18, 9, 15, 6))
+                    readUntil(channel) {
+                        terminal.read(15)
                     }
                 }
+                collectionScope.launch {
+                    restartListeningSignal.collect {
+                        readUntil(channel) {
+                            terminal.read(15)
+                        }
+                    }
+                }
+                collectionScope.launch {
+                    keyFlow.collect { keyEvent ->
+                        when (keyEvent) {
+//                            is KeyEvent.Alt -> TODO()
+//                            KeyEvent.Backspace -> TODO()
+//                            KeyEvent.CR -> TODO()
+//                            is KeyEvent.Character -> TODO()
+                            is KeyEvent.Ctrl -> {
+                                val letter = keyEvent.code
+                                if (ctrlKeyMap.containsKey(letter)) {
+                                    ctrlKeyMap[letter]?.invoke()
+                                } else {
+                                    restartListening()
+                                }
+                            }
+//                            KeyEvent.DownArrow -> TODO()
+//                            KeyEvent.Escape -> TODO()
+//                            KeyEvent.LF -> TODO()
+//                            KeyEvent.LeftArrow -> TODO()
+//                            KeyEvent.RightArrow -> TODO()
+//                            KeyEvent.Tab -> TODO()
+//                            is KeyEvent.Unknown -> TODO()
+//                            KeyEvent.UpArrow -> TODO()
+                            else -> Unit
+                        }
+                    }
+                }
+                // this looks like a memory leak
+                ctrlKeyMap['F'] = {
+                    finished.emit(true)
+                    processState.emit(ProcessStep.FindFile)
+                    rerender()
+                    signal()
+                    collectionScope.cancel()
+                }
+//                collectionScope.launch {
+//                    keyFlow.filter { it == KeyEvent.Ctrl('F') }.collect {
+//                        finished.emit(true)
+//                        processState.emit(ProcessStep.FindFile)
+//                        rerender()
+//                        signal()
+//                        collectionScope.cancel()
+//                    }
+//                }
                 collectionScope.launch {
 
                     keyFlow.filter { it == KeyEvent.Ctrl('O') }.collect {
