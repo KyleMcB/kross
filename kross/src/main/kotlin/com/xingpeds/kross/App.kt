@@ -444,6 +444,7 @@ fun main() = runBlocking {
                     Channel<Int>(Channel.UNLIMITED)
                 } else null
                 val pipes = Pipes(programInput = inputPipe, programOutput = outputPipe)
+                var fzf_exit_code = -99
                 fzfScope.launch {
                     launch {
                         outputPipe.connectTo(output.asOutputStream())
@@ -457,13 +458,13 @@ fun main() = runBlocking {
                         val args = if (lastWord != null) {
                             listOf("--query=$lastWord", "-1")
                         } else emptyList()
-                        executor.invoke(
+                        fzf_exit_code = executor.invoke(
                             "fzf",
                             args = args,
                             pipes = pipes,
                             env = state.environment.value,
                             cwd = state.currentDirectory.value
-                        )
+                        )()
                         inputPipe?.close()
                         outputPipe.close()
                     }
@@ -479,6 +480,8 @@ fun main() = runBlocking {
                             words.dropLast(1).joinToString(separator = " ") + " " + outputstring
                         )
                     }
+                } else if (fzf_exit_code != 0) {
+                    heldOverOuput.emit(bufferState.value.content)
                 }
             }
 
