@@ -100,7 +100,7 @@ fun main() = runBlocking {
     val initFile = initFile()
     lua.executeFile(initFile)
     val bufferState = MutableStateFlow<EditState>(EditState("", 0))
-    val completions = bufferState.map { (content, cursor) ->
+    bufferState.map { (content, _) ->
         // how many "words" are in content
         val count = content.count { it == ' ' } + 1
         if (count == 1) {
