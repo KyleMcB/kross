@@ -133,7 +133,7 @@ enum class ProcessStep {
     FindFile
 }
 
-val ctrlKeyMap: MutableMap<Char, suspend () -> Unit> = mutableMapOf()
+val keyMap: MutableMap<List<Char>, suspend () -> Unit> = mutableMapOf()
 
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
@@ -287,9 +287,9 @@ fun main() = runBlocking {
 //                            KeyEvent.CR -> TODO()
 //                            is KeyEvent.Character -> TODO()
                             is KeyEvent.Ctrl -> {
-                                val letter = keyEvent.code
-                                if (ctrlKeyMap.containsKey(letter)) {
-                                    ctrlKeyMap[letter]?.invoke()
+                                val letter = listOf(keyEvent.code)
+                                if (keyMap.containsKey(letter)) {
+                                    keyMap[letter]?.invoke()
                                 } else {
                                     restartListening()
                                 }
@@ -307,7 +307,7 @@ fun main() = runBlocking {
                     }
                 }
                 // this looks like a memory leak
-                ctrlKeyMap['F'] = {
+                keyMap[listOf('F')] = {
                     finished.emit(true)
                     processState.emit(ProcessStep.FindFile)
                     rerender()
@@ -323,25 +323,39 @@ fun main() = runBlocking {
 //                        collectionScope.cancel()
 //                    }
 //                }
-                collectionScope.launch {
-
-                    keyFlow.filter { it == KeyEvent.Ctrl('O') }.collect {
-                        finished.emit(true)
-                        processState.emit(ProcessStep.TypeInEditor)
-                        rerender()
-                        signal()
-                        collectionScope.cancel()
-                    }
+//                collectionScope.launch {
+//
+//                    keyFlow.filter { it == KeyEvent.Ctrl('O') }.collect {
+//                        finished.emit(true)
+//                        processState.emit(ProcessStep.TypeInEditor)
+//                        rerender()
+//                        signal()
+//                        collectionScope.cancel()
+//                    }
+//                }
+                keyMap[listOf('O')] = {
+                    finished.emit(true)
+                    processState.emit(ProcessStep.TypeInEditor)
+                    rerender()
+                    signal()
+                    collectionScope.cancel()
                 }
-                collectionScope.launch {
-                    keyFlow.filter { it == KeyEvent.Ctrl('R') }.collect {
-                        // ctrl-r needs to be terminal like enter
-                        processState.emit(ProcessStep.HistorySearch)
-                        finished.emit(true)
-                        rerender()
-                        signal()
-                        collectionScope.cancel()
-                    }
+//                collectionScope.launch {
+//                    keyFlow.filter { it == KeyEvent.Ctrl('R') }.collect {
+//                        // ctrl-r needs to be terminal like enter
+//                        processState.emit(ProcessStep.HistorySearch)
+//                        finished.emit(true)
+//                        rerender()
+//                        signal()
+//                        collectionScope.cancel()
+//                    }
+//                }
+                keyMap[listOf('R')] = {
+                    processState.emit(ProcessStep.HistorySearch)
+                    finished.emit(true)
+                    rerender()
+                    signal()
+                    collectionScope.cancel()
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.Tab::class).collect {
