@@ -52,10 +52,6 @@ fun LuaValue.funcOrNull(): LuaFunction? = try {
     null
 }
 
-fun LuaValue.toNullable(): LuaValue? {
-    return if (this.isnil()) null else this
-}
-
 fun createPromptState(
     timeFlow: Flow<String>,
     cwdState: StateFlow<File>,
@@ -86,45 +82,6 @@ val timeFlow = flow {
 
 data class EditState(val content: String, val cursor: Int)
 
-fun CoroutineScope.readUntilEnter(
-    terminal: SystemTerminal,
-    output: Channel<Int>,
-    terminalInput: List<Int> = listOf(10, 13)
-) = launch {
-
-    while (true) {
-        try {
-
-            val byte = terminal.read(15)
-            if (byte >= 0) {
-                output.send(byte)
-            }
-            when (byte) {
-//                10 -> {
-//                    output.close()
-//                    break
-//                }
-//
-//                13 -> {
-//                    output.close()
-//                    break
-//                }
-                in terminalInput -> {
-                    output.close()
-                    break
-                }
-
-                -1 -> {
-                    output.cancel()
-                    break
-                }
-            }
-        } catch (e: Exception) {
-            //bla
-        }
-    }
-}
-
 enum class ProcessStep {
     UserCommand,
     HistorySearch,
@@ -133,7 +90,7 @@ enum class ProcessStep {
     FindFile
 }
 
-val keyMap: MutableMap<List<Char>, suspend () -> Unit> = mutableMapOf()
+val keyMap: MutableMap<KeyEvent, suspend () -> Unit> = mutableMapOf()
 
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
@@ -165,7 +122,7 @@ fun main() = runBlocking {
             restartListeningSignal.emit(Unit)
         }
         val collectionScope = CoroutineScope(Dispatchers.Default)
-        scope.gitBranch(gitBranch)
+        collectionScope.gitBranch(gitBranch)
         val processState = MutableStateFlow(ProcessStep.UserCommand)
         var historyCursor: Int? = null
         // Prompt the user and read input
@@ -265,9 +222,6 @@ fun main() = runBlocking {
                 val channel = Channel<Int>(Channel.UNLIMITED)
                 val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
-                    // TODO improve the terminal character list
-                    // alt combo are not even possible with this system
-//                    readUntilEnter(terminal, channel, listOf(10, 13, 18, 9, 15, 6))
                     readUntil(channel) {
                         terminal.read(15)
                     }
@@ -281,91 +235,49 @@ fun main() = runBlocking {
                 }
                 collectionScope.launch {
                     keyFlow.collect { keyEvent ->
+
                         when (keyEvent) {
-//                            is KeyEvent.Alt -> TODO()
-//                            KeyEvent.Backspace -> TODO()
-//                            KeyEvent.CR -> TODO()
-//                            is KeyEvent.Character -> TODO()
-                            is KeyEvent.Ctrl -> {
-                                val letter = listOf(keyEvent.code)
-                                if (keyMap.containsKey(letter)) {
-                                    keyMap[letter]?.invoke()
+                            is KeyEvent.Alt, is KeyEvent.Ctrl, KeyEvent.Tab -> {
+
+                                if (keyMap.containsKey(keyEvent)) {
+                                    keyMap[keyEvent]?.invoke()
                                 } else {
                                     restartListening()
                                 }
                             }
-//                            KeyEvent.DownArrow -> TODO()
-//                            KeyEvent.Escape -> TODO()
-//                            KeyEvent.LF -> TODO()
-//                            KeyEvent.LeftArrow -> TODO()
-//                            KeyEvent.RightArrow -> TODO()
-//                            KeyEvent.Tab -> TODO()
-//                            is KeyEvent.Unknown -> TODO()
-//                            KeyEvent.UpArrow -> TODO()
+
                             else -> Unit
                         }
                     }
                 }
                 // this looks like a memory leak
-                keyMap[listOf('F')] = {
+                keyMap[KeyEvent.Ctrl('F')] = {
                     finished.emit(true)
                     processState.emit(ProcessStep.FindFile)
                     rerender()
                     signal()
                     collectionScope.cancel()
                 }
-//                collectionScope.launch {
-//                    keyFlow.filter { it == KeyEvent.Ctrl('F') }.collect {
-//                        finished.emit(true)
-//                        processState.emit(ProcessStep.FindFile)
-//                        rerender()
-//                        signal()
-//                        collectionScope.cancel()
-//                    }
-//                }
-//                collectionScope.launch {
-//
-//                    keyFlow.filter { it == KeyEvent.Ctrl('O') }.collect {
-//                        finished.emit(true)
-//                        processState.emit(ProcessStep.TypeInEditor)
-//                        rerender()
-//                        signal()
-//                        collectionScope.cancel()
-//                    }
-//                }
-                keyMap[listOf('O')] = {
+                keyMap[KeyEvent.Ctrl('O')] = {
                     finished.emit(true)
                     processState.emit(ProcessStep.TypeInEditor)
                     rerender()
                     signal()
                     collectionScope.cancel()
                 }
-//                collectionScope.launch {
-//                    keyFlow.filter { it == KeyEvent.Ctrl('R') }.collect {
-//                        // ctrl-r needs to be terminal like enter
-//                        processState.emit(ProcessStep.HistorySearch)
-//                        finished.emit(true)
-//                        rerender()
-//                        signal()
-//                        collectionScope.cancel()
-//                    }
-//                }
-                keyMap[listOf('R')] = {
+                keyMap[KeyEvent.Ctrl('R')] = {
                     processState.emit(ProcessStep.HistorySearch)
                     finished.emit(true)
                     rerender()
                     signal()
                     collectionScope.cancel()
                 }
-                collectionScope.launch {
-                    keyFlow.filterIsInstance(KeyEvent.Tab::class).collect {
-                        // process state to tab complete
-                        finished.emit(true)
-                        processState.emit(ProcessStep.TabComplete)
-                        rerender()
-                        signal()
-                        collectionScope.cancel()
-                    }
+                keyMap[KeyEvent.Tab] = {
+                    finished.emit(true)
+                    processState.emit(ProcessStep.TabComplete)
+                    rerender()
+                    signal()
+                    collectionScope.cancel()
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.UpArrow::class).collect {
