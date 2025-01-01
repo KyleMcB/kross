@@ -12,27 +12,71 @@ import kotlin.time.Duration.Companion.milliseconds
 val altTimeoutMs = 20.milliseconds
 
 sealed class KeyEvent {
-    data class Character(val text: String) : KeyEvent()
-    data class Alt(val text: String) : KeyEvent()
+    abstract fun toBytes(): List<Int>
+    data class Character(val text: String) : KeyEvent() {
+        override fun toBytes(): List<Int> = text.map { it.code }
+
+    }
+
+    data class Alt(val text: String) : KeyEvent() {
+        override fun toBytes(): List<Int> = listOf(27) + text.map { it.code }
+    }
 
     /**
      * ctrl can only work with a-z
      * the letter will always be capital too, so detecting shift is not possible
      * ctrl+I through ctrl+M are reserved
      */
-    data class Ctrl(val code: Char) : KeyEvent()
-    data object Escape : KeyEvent()
-    data class Unknown(val code: String) : KeyEvent()
-    data object Tab : KeyEvent()
-    data object CR : KeyEvent()
-    data object LF : KeyEvent()
-    data object Backspace : KeyEvent()
+    data class Ctrl(val code: Char) : KeyEvent() {
+        override fun toBytes(): List<Int> = listOf(code.code - 64)
+    }
+
+    data object Escape : KeyEvent() {
+        override fun toBytes(): List<Int> = listOf(27)
+    }
+
+    data class Unknown(val code: String) : KeyEvent() {
+        override fun toBytes(): List<Int> = code.map { it.code }
+    }
+
+    data object Tab : KeyEvent() {
+        override fun toBytes(): List<Int> = listOf(9)
+    }
+
+    data object CR : KeyEvent() {
+        override fun toBytes(): List<Int> = listOf(13)
+    }
+
+    data object LF : KeyEvent() {
+        override fun toBytes(): List<Int> = listOf(10)
+    }
+
+    data object Backspace : KeyEvent() {
+        override fun toBytes(): List<Int> = listOf(127)
+    }
 
     // ARROW KEYS
-    data object UpArrow : KeyEvent()
-    data object DownArrow : KeyEvent()
-    data object LeftArrow : KeyEvent()
-    data object RightArrow : KeyEvent()
+    data object UpArrow : KeyEvent() {
+        override fun toBytes(): List<Int> = TODO()
+    }
+
+    data object DownArrow : KeyEvent() {
+        override fun toBytes(): List<Int> {
+            TODO("Not yet implemented")
+        }
+    }
+
+    data object LeftArrow : KeyEvent() {
+        override fun toBytes(): List<Int> {
+            TODO("Not yet implemented")
+        }
+    }
+
+    data object RightArrow : KeyEvent() {
+        override fun toBytes(): List<Int> {
+            TODO("Not yet implemented")
+        }
+    }
 }
 
 fun toKeyEventFlow(channel: Channel<Int>): Flow<KeyEvent> {
