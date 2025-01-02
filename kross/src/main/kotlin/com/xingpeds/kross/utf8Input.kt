@@ -28,6 +28,10 @@ sealed class KeyEvent {
      * ctrl+I through ctrl+M are reserved
      */
     data class Ctrl(val code: Char) : KeyEvent() {
+        init {
+            require(code == code.uppercaseChar()) { "Terminals only send ctrl characters in upper case. Do not create a ctrl Event with a lowercase char." }
+        }
+
         override fun toBytes(): List<Int> = listOf(code.code - 64)
     }
 
