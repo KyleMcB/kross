@@ -265,6 +265,18 @@ fun main() = runBlocking {
                     signal()
                     collectionScope.cancel()
                 }
+                keyMap[KeyEvent.Alt("a")] = {
+                    bufferState.update { (content, cursor) ->
+                        EditState(content, 0)
+                    }
+                    restartListening()
+                }
+                keyMap[KeyEvent.Alt("A")] = {
+                    bufferState.update { (content, cursor) ->
+                        EditState(content, content.length)
+                    }
+                    restartListening()
+                }
                 keyMap[KeyEvent.Ctrl('R')] = {
                     processState.emit(ProcessStep.HistorySearch)
                     finished.emit(true)
