@@ -58,10 +58,10 @@ fun LuaValue.key(name: String): LuaValue? = try {
     null
 }
 
-operator fun LuaValue.get(name: String): LuaValue? = key(name)
-
+class UserDisplayError(override val message: String) : Exception()
+data class UserLuaFunction(val name: String, val desc: String, val callback: LuaFunction)
 object LuaEngine : Lua {
-    val _userFunctions = MutableStateFlow<Map<String, LuaFunction>>(emptyMap())
+    val _userFunctions = MutableStateFlow<Map<String, UserLuaFunction>>(emptyMap())
     val userTable = LuaValue.tableOf()
     val builtinTable = LuaValue.tableOf().apply {
         Builtin.builtinFuns.forEach { (name: String, func: BuiltinFun) ->
@@ -69,15 +69,23 @@ object LuaEngine : Lua {
         }
     }
 
-    val registerFunction = object : TwoArgFunction() {
-        override fun call(nameArg: LuaValue, funcArg: LuaValue): LuaValue {
-            val name = nameArg.checkjstring() ?: throw Exception("function name not supplied")// Get string from nameArg
-            val function = funcArg.checkfunction()
-                ?: throw Exception("lua function not supplied") // Ensure funcArg is a LuaFunction
+    /*
+    map {
+    name =
+    desc =
+    callback =
+    }
+     */
+    val registerFunction = object : OneArgFunction() {
+        override fun call(arg: LuaValue): LuaValue {
+            val name = arg.key("name")?.checkjstring() ?: throw UserDisplayError("function name not supplied")
+            val desc = arg.key("desc")?.checkjstring() ?: throw UserDisplayError("function desc not supplied")
+            val callback =
+                arg.key("callback")?.checkfunction() ?: throw UserDisplayError("function callback not supplied")
             _userFunctions.update {
-                it.toMutableMap().apply { this[name] = function }
+                it.toMutableMap().apply { this[name] = UserLuaFunction(name, desc, callback) }
             }
-            return LuaValue.NIL // maybe I should return the function?
+            return LuaValue.NIL
         }
 
     }
@@ -110,9 +118,20 @@ object LuaEngine : Lua {
         CoroutineScope(Dispatchers.Default).launch {
             _userFunctions.collect { userFuncMap ->
 
-                userFuncMap.forEach { (name, func) ->
-                    userTable[name] = func
-                    global["func"] = userTable
+                userFuncMap.values.forEach { userLuaFunc: UserLuaFunction ->
+                    val (name, desc, func) = userLuaFunc
+                    val table = LuaValue.tableOf(
+                        arrayOf(
+                            LuaValue.valueOf("name"),
+                            LuaString.valueOf(name),
+                            LuaValue.valueOf("desc"),
+                            LuaString.valueOf(desc),
+                            LuaValue.valueOf("callback"),
+                            func
+                        )
+                    )
+                    userTable[name] = table
+                    global["userFuncs"] = userTable
                 }
             }
         }

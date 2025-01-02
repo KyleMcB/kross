@@ -5,9 +5,12 @@ import com.xingpeds.kross.entities.asLuaBinInput
 import com.xingpeds.kross.entities.asLuaWriter
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.ExecutableResult
+import com.xingpeds.kross.luaScripting.UserDisplayError
+import com.xingpeds.kross.luaScripting.key
 import org.luaj.vm2.LuaString
 import org.luaj.vm2.LuaValue
 import org.luaj.vm2.Varargs
+import org.luaj.vm2.lib.jse.CoerceJavaToLua
 import java.io.File
 
 class LuaExecutable : Executable {
@@ -34,28 +37,51 @@ class LuaExecutable : Executable {
         if (programError != null) {
             lua.STDERR = programError.asLuaWriter()
         }
-        val function = lua["func"][name].checkfunction() ?: throw Exception("could not find lua function $name")
+
+        val function = lua["userFuncs"].key(name)?.key("callback")?.checkfunction()
+            ?: throw UserDisplayError("could not find lua function $name")
+
         return {
-// I have something thinking to do about how to invoke the lua function
-            val funcReturn: Varargs =
-                function.invoke(
-                    LuaValue.listOf(
-                        args.map {
-                            LuaString.valueOf(it)
-                        }.toTypedArray()
-                    ),
-                    LuaValue.tableOf(namedValues = env.flatMap { (key, value) ->
-                        listOf(LuaString.valueOf(key), LuaString.valueOf(value))
-                    }.toTypedArray())
+            val luaArgs = LuaValue.listOf(
+                args.map { LuaString.valueOf(it) }.toTypedArray()
+            )
+
+            val luaEnv = LuaValue.tableOf(
+                namedValues = env.flatMap { (key, value) ->
+                    listOf(LuaString.valueOf(key), LuaString.valueOf(value))
+                }.toTypedArray()
+            )
+
+            // Coerce Java File to Lua userdata
+            val luaCwd = CoerceJavaToLua.coerce(cwd)
+
+            // Pack the `luaArgs`, `luaEnv`, and `luaCwd` into a single Lua table
+            val luaInputTable = LuaValue.tableOf(
+//                arrayOf(
+//                    LuaString.valueOf("args") to luaArgs,
+//                    LuaString.valueOf("env") to luaEnv,
+//                    LuaString.valueOf("cwd") to luaCwd
+//                )
+                arrayOf(
+                    LuaValue.valueOf("args"),
+                    luaArgs,
+                    LuaValue.valueOf("env"),
+                    luaEnv,
+                    LuaValue.valueOf("cwd"),
+                    luaCwd
                 )
+            )
+
+            // Pass the packed table to the Lua function
+            val funcReturn: Varargs = function.invoke(luaInputTable)
+
             programOutput?.close()
 
             lua.STDOUT = originalOutput
             lua.STDIN = originalInput
             lua.STDERR = originalErr
+
             funcReturn.toint(1)
         }
-
-
     }
 }

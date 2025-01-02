@@ -116,34 +116,29 @@ class Executor(
 
     private suspend fun exeSimpleCommand(command: AST.SimpleCommand, pipes: Pipes = this.pipes): Int {
         val commandName = command.name.value
-        return try {
-            val executable = makeExecutable(commandName)
-            val resolvedArguments: List<String> = command.arguments.map { arg ->
-                when (arg) {
-                    is AST.Argument.CommandSubstitution -> exeCommandSub(arg)
-                    is AST.Argument.VariableSubstitution -> this.shellState.environment.value[arg.variableName] ?: ""
-                    // FIXME I just found out the shell is responsible for text replacing the ~ with the home dire
-                    // not sure if this is the right place for that
-                    is AST.Argument.WordArgument -> {
-                        val text = arg.value
-                        if (text.startsWith("~")) {
-                            text.replaceFirst("~", System.getProperty("user.home"))
-                        } else
-                            arg.value
-                    }
+        val executable = makeExecutable(commandName)
+        val resolvedArguments: List<String> = command.arguments.map { arg ->
+            when (arg) {
+                is AST.Argument.CommandSubstitution -> exeCommandSub(arg)
+                is AST.Argument.VariableSubstitution -> this.shellState.environment.value[arg.variableName] ?: ""
+                // FIXME I just found out the shell is responsible for text replacing the ~ with the home dire
+                // not sure if this is the right place for that
+                is AST.Argument.WordArgument -> {
+                    val text = arg.value
+                    if (text.startsWith("~")) {
+                        text.replaceFirst("~", System.getProperty("user.home"))
+                    } else
+                        arg.value
                 }
             }
-            executable(
-                commandName,
-                resolvedArguments,
-                pipes,
-                shellState.environment.value,
-                cwd.value
-            )().also { results.add(it) }
-        } catch (e: Exception) {
-            e.error("$commandName failed to run")
-            -99
         }
+        return executable(
+            commandName,
+            resolvedArguments,
+            pipes,
+            shellState.environment.value,
+            cwd.value
+        )().also { results.add(it) }
     }
 
     private suspend fun exeCommandSub(arg: AST.Argument.CommandSubstitution): String {
