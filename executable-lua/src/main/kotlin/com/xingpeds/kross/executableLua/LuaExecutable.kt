@@ -56,11 +56,6 @@ class LuaExecutable : Executable {
 
             // Pack the `luaArgs`, `luaEnv`, and `luaCwd` into a single Lua table
             val luaInputTable = LuaValue.tableOf(
-//                arrayOf(
-//                    LuaString.valueOf("args") to luaArgs,
-//                    LuaString.valueOf("env") to luaEnv,
-//                    LuaString.valueOf("cwd") to luaCwd
-//                )
                 arrayOf(
                     LuaValue.valueOf("args"),
                     luaArgs,
