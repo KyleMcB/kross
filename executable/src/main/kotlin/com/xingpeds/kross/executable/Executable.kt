@@ -21,7 +21,7 @@ interface Executable {
     ): ExecutableResult
 }
 
-class JavaOSProcess : Executable {
+class JavaOSProcess(private val overrideName: String? = null) : Executable {
 
     override suspend fun invoke(
         name: String,
@@ -31,7 +31,7 @@ class JavaOSProcess : Executable {
         cwd: File
     ): ExecutableResult {
 
-        val pb = ProcessBuilder(listOf(name) + args)
+        val pb = ProcessBuilder(listOf(overrideName ?: name) + args)
         pb.directory(cwd)
         pb.environment().clear()
         pb.environment().putAll(env)
