@@ -52,6 +52,7 @@ fun LuaValue.funcOrNull(): LuaFunction? = try {
     null
 }
 
+val isWindows = System.getProperty("os.name").lowercase().contains("win")
 fun createPromptState(
     timeFlow: Flow<String>,
     cwdState: StateFlow<File>,
@@ -427,7 +428,12 @@ fun main() = runBlocking {
                 val buffer = bufferState.value.content
                 val words = buffer.split(" ")
                 val candidates = if (words.size == 1) {
-                    listExecutablesOnPath().joinToString(separator = "\n") { it }
+                    if (isWindows) {
+                        listExecutablesOnPath()
+                            .map { it.substringBeforeLast(".") }
+                            .joinToString(separator = "\n") { it }
+                    } else
+                        listExecutablesOnPath().joinToString(separator = "\n") { it }
                 } else state.currentDirectory.value.list()?.joinToString(separator = "\n") { it }
                 val inputPipe = if (candidates != null) {
                     Channel<Int>(Channel.UNLIMITED)
