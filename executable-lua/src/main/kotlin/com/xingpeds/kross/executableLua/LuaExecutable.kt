@@ -10,7 +10,6 @@ import com.xingpeds.kross.luaScripting.key
 import org.luaj.vm2.LuaString
 import org.luaj.vm2.LuaValue
 import org.luaj.vm2.Varargs
-import org.luaj.vm2.lib.jse.CoerceJavaToLua
 import java.io.File
 
 class LuaExecutable : Executable {
@@ -53,15 +52,10 @@ class LuaExecutable : Executable {
             )
 
             // Coerce Java File to Lua userdata
-            val luaCwd = CoerceJavaToLua.coerce(cwd)
+            val luaCwd = LuaString.valueOf(cwd.absolutePath)
 
             // Pack the `luaArgs`, `luaEnv`, and `luaCwd` into a single Lua table
             val luaInputTable = LuaValue.tableOf(
-//                arrayOf(
-//                    LuaString.valueOf("args") to luaArgs,
-//                    LuaString.valueOf("env") to luaEnv,
-//                    LuaString.valueOf("cwd") to luaCwd
-//                )
                 arrayOf(
                     LuaValue.valueOf("args"),
                     luaArgs,

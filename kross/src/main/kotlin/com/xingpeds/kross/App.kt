@@ -570,7 +570,23 @@ suspend fun processInput(line: String) {
             } else if (Builtin.builtinFuns.containsKey(name)) {
                 BuiltInExecutable(Builtin.builtinFuns[name]!!)
             } else {
-                JavaOSProcess()
+                val programs = listExecutablesOnPath()
+                if (programs.contains(name)) {
+                    JavaOSProcess()
+                } else {
+                    val matchedProgram = programs.find { program ->
+                        val programWithoutExtension = program.substringBeforeLast('.')
+                        programWithoutExtension.equals(name, ignoreCase = true)
+                    }
+
+                    if (matchedProgram != null) {
+                        // Use the full program name with extension as overrideName
+                        JavaOSProcess(overrideName = matchedProgram)
+                    } else {
+                        throw Exception("Program '$name' not found on PATH.")
+                    }
+                }
+
             }
         }
         val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
