@@ -20,10 +20,7 @@ import com.xingpeds.kross.luaScripting.Lua
 import com.xingpeds.kross.luaScripting.LuaEngine
 import com.xingpeds.kross.luaScripting.executeFile
 import com.xingpeds.kross.luaScripting.key
-import com.xingpeds.kross.parser.Executor
-import com.xingpeds.kross.parser.Lexer
-import com.xingpeds.kross.parser.Parser
-import com.xingpeds.kross.parser.Token
+import com.xingpeds.kross.parser.*
 import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
@@ -602,16 +599,50 @@ fun main() = runBlocking {
     scope.cancel()
 }
 
+val colorMap: Map<TokenType, Int?> = TokenType.entries.associate {
+    when (it) {
+        TokenType.Word -> it to null
+        TokenType.Semicolon -> it to 0xFFFF00
+        TokenType.Pipe -> it to 0xFFFF00
+        TokenType.And -> it to 0xFFFF00
+        TokenType.Or -> it to 0xFFFF00
+        TokenType.LeftParen -> it to 0xFFFF00
+        TokenType.RightParen -> it to 0xFFFF00
+        TokenType.SingleQuotedString -> it to 0xFFFF00
+        TokenType.DoubleQuotedString -> it to 0xFFFF00
+        TokenType.Dollar -> it to 0xFFFF00
+        TokenType.LeftBracket -> it to 0xFFFF00
+        TokenType.RightBracket -> it to 0xFFFF00
+        TokenType.EOF -> it to null
+    }
+}
+
 private fun OffscreenRenderScope.printBufferWithInvert(bufferState: StateFlow<EditState>) {
     val bufferSnapShot = bufferState.value.content
     val cursorIndex = bufferState.value.cursor
+    val tokens = bufferState.value.tokens
     for ((index, c) in bufferSnapShot.toCharArray().withIndex()) {
+        val token = tokens.find { index in it.position }
+        val color: Int? = token?.type?.let { colorMap[it] }
         if (index == cursorIndex) {
             invert {
-                text(c)
+                if (color != null) {
+                    rgb(color) {
+                        text(c)
+                    }
+                } else {
+                    text(c)
+                }
+                // color for token lookup
             }
         } else {
-            text(c)
+            if (color != null) {
+                rgb(color) {
+                    text(c)
+                }
+            } else {
+                text(c)
+            }
         }
     }
     if (bufferSnapShot.length == cursorIndex) {
