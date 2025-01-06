@@ -36,7 +36,7 @@ class Lexer(
             if (match != null) {
                 val (matchResult, tokenType) = match
                 val tokenText = matchResult.value
-                val token = createTokenFrom(tokenText, tokenType)
+                val token = createTokenFrom(tokenText, tokenType, cursor)
                 cursor += tokenText.length
                 emit(token)
             } else {
@@ -44,24 +44,24 @@ class Lexer(
                 throw Exception("Unexpected character '${string[0]}' at cursor $cursor near: \"$snippet\"")
             }
         }
-        emit(Token.EOF)
+        emit(Token.EOF(cursor - 1..cursor - 1))
     }
 
-    private fun createTokenFrom(text: String, tokenType: TokenType): Token {
+    private fun createTokenFrom(text: String, tokenType: TokenType, atPosition: Int): Token {
         return when (tokenType) {
-            TokenType.Word -> Token.Word(text)
-            TokenType.Semicolon -> Token.Semicolon
-            TokenType.Pipe -> Token.Pipe
-            TokenType.And -> Token.And
-            TokenType.Or -> Token.Or
-            TokenType.LeftParen -> Token.LeftParen
-            TokenType.RightParen -> Token.RightParen
-            TokenType.Dollar -> Token.Dollar
-            TokenType.EOF -> Token.EOF
-            TokenType.SingleQuotedString -> Token.SingleQuote(text)
-            TokenType.DoubleQuotedString -> Token.DoubleQuote(text)
-            TokenType.LeftBracket -> Token.LeftBracket
-            TokenType.RightBracket -> Token.RightBracket
+            TokenType.Word -> Token.Word(text, (atPosition..text.length + atPosition - 1))
+            TokenType.Semicolon -> Token.Semicolon(atPosition..atPosition)
+            TokenType.Pipe -> Token.Pipe(atPosition..atPosition)
+            TokenType.And -> Token.And(atPosition..atPosition + 1)
+            TokenType.Or -> Token.Or(atPosition..atPosition + 1)
+            TokenType.LeftParen -> Token.LeftParen(atPosition..atPosition)
+            TokenType.RightParen -> Token.RightParen(atPosition..atPosition)
+            TokenType.Dollar -> Token.Dollar(atPosition..atPosition)
+            TokenType.EOF -> Token.EOF(atPosition..atPosition)
+            TokenType.SingleQuotedString -> Token.SingleQuote(text, (atPosition..text.length + atPosition - 1))
+            TokenType.DoubleQuotedString -> Token.DoubleQuote(text, (atPosition..text.length + atPosition - 1))
+            TokenType.LeftBracket -> Token.LeftBracket(atPosition..atPosition)
+            TokenType.RightBracket -> Token.RightBracket(atPosition..atPosition)
         }
     }
 }

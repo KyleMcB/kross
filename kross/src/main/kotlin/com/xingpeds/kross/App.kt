@@ -2,20 +2,17 @@ package com.xingpeds.kross
 
 import com.varabyte.kotter.foundation.runUntilSignal
 import com.varabyte.kotter.foundation.session
-import com.varabyte.kotter.foundation.text.invert
-import com.varabyte.kotter.foundation.text.text
-import com.varabyte.kotter.foundation.text.textLine
+import com.varabyte.kotter.foundation.text.*
 import com.varabyte.kotter.runtime.internal.ansi.Ansi.Csi.Codes
+import com.varabyte.kotter.runtime.render.OffscreenRenderScope
+import com.varabyte.kotter.runtime.render.RenderScope
 import com.varabyte.kotter.terminal.system.SystemTerminal
 import com.varabyte.kotterx.decorations.BorderCharacters
 import com.varabyte.kotterx.decorations.bordered
 import com.varabyte.kotterx.text.Justification
 import com.varabyte.kotterx.text.justified
 import com.xingpeds.kross.builtins.BuiltInExecutable
-import com.xingpeds.kross.entities.Log
-import com.xingpeds.kross.entities.Pipes
-import com.xingpeds.kross.entities.asOutputStream
-import com.xingpeds.kross.entities.connectTo
+import com.xingpeds.kross.entities.*
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.executableLua.LuaExecutable
@@ -26,6 +23,7 @@ import com.xingpeds.kross.luaScripting.key
 import com.xingpeds.kross.parser.Executor
 import com.xingpeds.kross.parser.Lexer
 import com.xingpeds.kross.parser.Parser
+import com.xingpeds.kross.parser.Token
 import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
@@ -74,6 +72,42 @@ fun createPromptState(
     )
 }
 
+fun createPromptfunc(
+    timeFlow: Flow<String>,
+    cwdState: StateFlow<File>,
+    gitBranch: StateFlow<String?>,
+    username: String
+): StateFlow<RenderScope.() -> Unit> {
+    return combine(timeFlow, cwdState, gitBranch.map { it?.trim() }) { time, cwdFile, branch ->
+        val userhome = System.getProperty("user.home")
+        val cwd = cwdFile.absolutePath.replace(userhome, "~")
+        if (branch?.isNotBlank() == true) {
+            val textline: RenderScope.() -> Unit = {
+                text("branch: ")
+                blue {
+                    textLine(branch)
+                }
+                blue { text("$username ") }
+                text(time)
+                green { text(" $cwd") }
+                textLine(" >")
+            }
+            textline
+        } else {
+            {
+                blue { text("$username ") }
+                text(time)
+                green { text(" $cwd") }
+                textLine(" >")
+            }
+        }
+    }.stateIn(
+        scope = CoroutineScope(Dispatchers.Default), // TODO Use appropriate coroutine scope
+        started = SharingStarted.Eagerly,
+        initialValue = {}
+    )
+}
+
 val timeFlow = flow {
     while (true) {
         emit(getCurrentTime()) // Emit the current time
@@ -81,7 +115,7 @@ val timeFlow = flow {
     }
 }
 
-data class EditState(val content: String, val cursor: Int)
+data class EditState(val content: String, val cursor: Int, val tokens: List<Token>)
 
 enum class ProcessStep {
     UserCommand,
@@ -92,6 +126,13 @@ enum class ProcessStep {
 }
 
 val keyMap: MutableMap<KeyEvent, suspend () -> Unit> = mutableMapOf()
+suspend fun String.toTokens(): List<Token> {
+    return try {
+        Lexer(this).tokens().toList()
+    } catch (e: Exception) {
+        emptyList()
+    }
+}
 
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
@@ -100,7 +141,7 @@ fun main() = runBlocking {
     val lua: Lua = LuaEngine
     val initFile = initFile()
     lua.executeFile(initFile)
-    val bufferState = MutableStateFlow<EditState>(EditState("", 0))
+    val bufferState = MutableStateFlow<EditState>(EditState("", 0, emptyList()))
     bufferState.map { (content, _) ->
         // how many "words" are in content
         val count = content.count { it == ' ' } + 1
@@ -111,7 +152,8 @@ fun main() = runBlocking {
     val gitBranch = MutableStateFlow<String?>(null)
 
     val username = System.getProperty("user.name")
-    val promptState = createPromptState(
+
+    val promptState2 = createPromptfunc(
         timeFlow, state.currentDirectory,
         username = username,
         gitBranch = gitBranch,
@@ -122,7 +164,10 @@ fun main() = runBlocking {
         val restartListening = suspend {
             restartListeningSignal.emit(Unit)
         }
-        val collectionScope = CoroutineScope(Dispatchers.Default)
+        val handler = CoroutineExceptionHandler { _, exception ->
+            exception.error("uncaught error")
+        }
+        val collectionScope = CoroutineScope(Dispatchers.Default + handler)
         collectionScope.gitBranch(gitBranch)
         val processState = MutableStateFlow(ProcessStep.UserCommand)
         var historyCursor: Int? = null
@@ -136,7 +181,7 @@ fun main() = runBlocking {
             prompt = promptfunc.call().tojstring()
         }
         val heldOutput = heldOverOuput.value
-        val startingBuffer = EditState(heldOutput, heldOutput.length)
+        val startingBuffer = EditState(heldOutput, heldOutput.length, heldOutput.toTokens())
         bufferState.emit(startingBuffer)
         heldOverOuput.emit("")
         // TODO finished could be replaced by a nullable processStep state
@@ -146,10 +191,11 @@ fun main() = runBlocking {
                 exitProcess(0)
             } else {
                 runBlocking {
-                    bufferState.emit(EditState("", 0))
+                    bufferState.emit(EditState("", 0, emptyList()))
                 }
             }
         }
+
         session(terminal = terminal) {
 
             section {
@@ -160,10 +206,12 @@ fun main() = runBlocking {
                         ProcessStep.UserCommand -> {
                             bordered(borderCharacters = BorderCharacters.CURVED) {
                                 justified(Justification.LEFT, minWidth = terminalWidth - 2) {
-                                    textLine(promptState.value.dropLast(2))
-                                    textLine(bufferState.value.content)
+//                                    textLine(promptState.value.dropLast(2))
+                                    val promptFunc = promptState2.value
+                                    promptFunc()
+//                                    textLine(bufferState.value.content)
+                                    printColorized(bufferState)
                                 }
-
                             }
                         }
 
@@ -198,28 +246,20 @@ fun main() = runBlocking {
                 } else {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
                         justified(Justification.LEFT, minWidth = terminal.width - 2) {
-                            text(promptState.value)
-                            val bufferSnapShot = bufferState.value.content
-                            val cursorIndex = bufferState.value.cursor
-                            for ((index, c) in bufferSnapShot.toCharArray().withIndex()) {
-                                if (index == cursorIndex) {
-                                    invert {
-                                        text(c)
-                                    }
-                                } else {
-                                    text(c)
-                                }
-                            }
-                            if (bufferSnapShot.length == cursorIndex) {
-                                invert {
-                                    text(" ")
-                                }
-                            }
+//                            text(promptState.value)
+                            val promptfunc = promptState2.value
+                            promptfunc()
+                            printBufferWithInvert(bufferState)
                         }
                     }
                 }
             }.runUntilSignal {
 
+                collectionScope.launch {
+                    bufferState.collect { (content, cursor, tokens) ->
+                        tokens.debug("tokens")
+                    }
+                }
                 val channel = Channel<Int>(Channel.UNLIMITED)
                 val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
@@ -267,14 +307,14 @@ fun main() = runBlocking {
                     collectionScope.cancel()
                 }
                 keyMap[KeyEvent.Alt("a")] = {
-                    bufferState.update { (content, cursor) ->
-                        EditState(content, 0)
+                    bufferState.update { (content, cursor, tokens) ->
+                        EditState(content, 0, tokens)
                     }
                     restartListening()
                 }
                 keyMap[KeyEvent.Alt("A")] = {
-                    bufferState.update { (content, cursor) ->
-                        EditState(content, content.length)
+                    bufferState.update { (content, cursor, tokens) ->
+                        EditState(content, content.length, tokens)
                     }
                     restartListening()
                 }
@@ -297,7 +337,7 @@ fun main() = runBlocking {
                         historyCursor = min(historyCursor?.plus(1) ?: 0, state.history.value.lastIndex)
                         val content = state.history.value[historyCursor!!].first
                         bufferState.emit(
-                            EditState(content, content.length)
+                            EditState(content, content.length, content.toTokens())
                         )
                     }
                 }
@@ -306,37 +346,40 @@ fun main() = runBlocking {
                         historyCursor = max(historyCursor?.minus(1) ?: 0, 0)
                         val content = state.history.value[historyCursor!!].first
                         bufferState.emit(
-                            EditState(content, content.length)
+                            EditState(content, content.length, content.toTokens())
                         )
                     }
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.LeftArrow::class).collect {
-                        bufferState.update { (content, cursor) ->
-                            EditState(content, if (cursor > 0) cursor - 1 else 0)
+                        bufferState.update { (content, cursor, tokens) ->
+                            EditState(content, if (cursor > 0) cursor - 1 else 0, tokens)
                         }
                     }
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.RightArrow::class).collect {
-                        bufferState.update { (content, cursor) ->
-                            EditState(content, if (cursor < content.length) cursor + 1 else content.length)
+                        bufferState.update { (content, cursor, tokens) ->
+                            EditState(content, if (cursor < content.length) cursor + 1 else content.length, tokens)
                         }
                     }
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.Character::class).collect { charEvent ->
                         bufferState.update { (content, cursor) ->
-                            EditState(content.insertAt(cursor, charEvent.text), cursor + charEvent.text.length)
+                            val content1 = content.insertAt(cursor, charEvent.text)
+                            EditState(content1, cursor + charEvent.text.length, content1.toTokens())
                         }
                     }
                 }
                 collectionScope.launch {
                     keyFlow.filterIsInstance(KeyEvent.Backspace::class).collect { backspaceEvent ->
                         bufferState.update { (content, cursor) ->
+                            val content1 = content.dropAt(cursor)
                             EditState(
-                                content.dropAt(cursor),
-                                if (cursor > 0) cursor - 1 else 0
+                                content1,
+                                if (cursor > 0) cursor - 1 else 0,
+                                content1.toTokens()
                             )
                         }
                     }
@@ -350,16 +393,14 @@ fun main() = runBlocking {
                         collectionScope.cancel()
                     }
                 }
+
                 collectionScope.launch {
                     bufferState.collect {
                         rerender()
                     }
                 }
                 collectionScope.launch {
-                    promptState.onCompletion {
-                        finished.emit(true)
-                        rerender()
-                    }.collect {
+                    promptState2.collect {
                         rerender()
                     }
                 }
@@ -500,7 +541,6 @@ fun main() = runBlocking {
                     val exitCode = process.waitFor()
                     if (exitCode != 0) {
                         println("Editor exited with error code $exitCode")
-                        null
                     }
 
                     // Read the content of the temporary file
@@ -560,6 +600,135 @@ fun main() = runBlocking {
     }
 
     scope.cancel()
+}
+
+private fun OffscreenRenderScope.printBufferWithInvert(bufferState: StateFlow<EditState>) {
+    val bufferSnapShot = bufferState.value.content
+    val cursorIndex = bufferState.value.cursor
+    for ((index, c) in bufferSnapShot.toCharArray().withIndex()) {
+        if (index == cursorIndex) {
+            invert {
+                text(c)
+            }
+        } else {
+            text(c)
+        }
+    }
+    if (bufferSnapShot.length == cursorIndex) {
+        invert {
+            text(" ")
+        }
+    }
+}
+
+private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState>) {
+    val (content, cursor, tokens) = bufferState.value
+
+    var index = 0
+    while (index < content.length) {
+        val token = tokens.find { index in it.position }
+        if (token != null) {
+            when (token) {
+                is Token.And -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.Dollar -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.EOF -> Unit
+                is Token.LeftBracket -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.LeftParen -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.DoubleQuote -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.SingleQuote -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.Word -> {
+                    val text = content.substring(token.position)
+                    text(text)
+                    index += text.length
+                }
+
+                is Token.Or -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.Pipe -> {
+                    val text = content.substring(token.position)
+                    blue {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.RightBracket -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.RightParen -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.Semicolon -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+            }
+        } else {
+            text(content[index])
+            index += 1
+        }
+    }
 }
 
 suspend fun processInput(line: String) {

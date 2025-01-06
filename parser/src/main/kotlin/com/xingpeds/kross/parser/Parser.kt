@@ -20,7 +20,7 @@ command_line   ::= input
 */
 class Parser {
     var iterator: Iterator<Token> = emptyList<Token>().iterator()
-    var lookahead: Token = Token.EOF
+    var lookahead: Token = Token.EOF(0..0)
     private fun peek() = lookahead
     private fun advance(): Token {
         val token = lookahead
@@ -68,12 +68,12 @@ class Parser {
         while (peek() is Token.Operator) {
             val token = peek() as Token.Operator
             command = when (token) {
-                Token.And -> {
+                is Token.And -> {
                     eat(TokenType.And)
                     AST.Command.And(left = command, right = parseCommand())
                 }
 
-                Token.Or -> {
+                is Token.Or -> {
                     eat(TokenType.Or)
                     AST.Command.Or(left = command, right = parseCommand())
                 }
@@ -162,7 +162,7 @@ class Parser {
                 else -> tokensForSub.add(advance())
             }
         }
-        tokensForSub.add(Token.EOF)
+        tokensForSub.add(Token.EOF(1..1)) //fix me not sure if this will be an issue later
         val subFlow = tokensForSub.asFlow()
         val subParser = Parser()
         val subProgram = subParser.parse(subFlow)
