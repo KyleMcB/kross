@@ -150,7 +150,7 @@ fun main() = runBlocking {
 
     val username = System.getProperty("user.name")
 
-    val promptState2 = createPromptfunc(
+    val promptState = createPromptfunc(
         timeFlow, state.currentDirectory,
         username = username,
         gitBranch = gitBranch,
@@ -203,10 +203,8 @@ fun main() = runBlocking {
                         ProcessStep.UserCommand -> {
                             bordered(borderCharacters = BorderCharacters.CURVED) {
                                 justified(Justification.LEFT, minWidth = terminalWidth - 2) {
-//                                    textLine(promptState.value.dropLast(2))
-                                    val promptFunc = promptState2.value
+                                    val promptFunc = promptState.value
                                     promptFunc()
-//                                    textLine(bufferState.value.content)
                                     printColorized(bufferState)
                                 }
                             }
@@ -244,7 +242,7 @@ fun main() = runBlocking {
                     bordered(borderCharacters = BorderCharacters.CURVED) {
                         justified(Justification.LEFT, minWidth = terminal.width - 2) {
 //                            text(promptState.value)
-                            val promptfunc = promptState2.value
+                            val promptfunc = promptState.value
                             promptfunc()
                             printBufferWithInvert(bufferState)
                         }
@@ -397,7 +395,7 @@ fun main() = runBlocking {
                     }
                 }
                 collectionScope.launch {
-                    promptState2.collect {
+                    promptState.collect {
                         rerender()
                     }
                 }
