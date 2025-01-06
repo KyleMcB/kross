@@ -2,11 +2,13 @@ package com.xingpeds.kross.parser
 
 
 sealed class Token {
+    abstract val position: IntRange
+
     sealed interface Operator
 
     abstract val type: TokenType
 
-    data object Dollar : Token() {
+    data class Dollar(override val position: IntRange) : Token() {
         override val type = TokenType.Dollar
     }
 
@@ -14,53 +16,53 @@ sealed class Token {
         abstract val value: String
     }
 
-    data class SingleQuote(override val value: String) : Literal() {
+    data class SingleQuote(override val value: String, override val position: IntRange) : Literal() {
         override val type = TokenType.SingleQuotedString
     }
 
-    data class DoubleQuote(override val value: String) : Literal() {
+    data class DoubleQuote(override val value: String, override val position: IntRange) : Literal() {
         override val type = TokenType.DoubleQuotedString
     }
 
     data class Word(
-        override val value: String,
+        override val value: String, override val position: IntRange,
     ) : Literal() {
         override val type = TokenType.Word
     }
 
-    data object Semicolon : Token() {
+    data class Semicolon(override val position: IntRange) : Token() {
         override val type = TokenType.Semicolon
     }
 
-    data object Pipe : Token() {
+    data class Pipe(override val position: IntRange) : Token() {
         override val type = TokenType.Pipe
     }
 
-    data object And : Token(), Operator {
+    data class And(override val position: IntRange) : Token(), Operator {
         override val type = TokenType.And
     }
 
-    data object Or : Token(), Operator {
+    data class Or(override val position: IntRange) : Token(), Operator {
         override val type = TokenType.Or
     }
 
-    data object LeftParen : Token() {
+    data class LeftParen(override val position: IntRange) : Token() {
         override val type = TokenType.LeftParen
     }
 
-    data object RightParen : Token() {
+    data class RightParen(override val position: IntRange) : Token() {
         override val type = TokenType.RightParen
     }
 
-    data object RightBracket : Token() {
+    data class RightBracket(override val position: IntRange) : Token() {
         override val type: TokenType = TokenType.RightBracket
     }
 
-    data object LeftBracket : Token() {
+    data class LeftBracket(override val position: IntRange) : Token() {
         override val type: TokenType = TokenType.LeftBracket
     }
 
-    data object EOF : Token() {
+    data class EOF(override val position: IntRange = 0..0) : Token() {
 
         override val type = TokenType.EOF
     }
