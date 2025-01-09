@@ -66,6 +66,8 @@ class Lexer(
                 text,
                 (atPosition..text.length + atPosition - 1)
             )
+
+            TokenType.WordWithGlob -> Token.Glob(text, (atPosition..text.length + atPosition - 1))
         }
     }
 }

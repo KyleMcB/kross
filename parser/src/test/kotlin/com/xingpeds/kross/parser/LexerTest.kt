@@ -107,4 +107,12 @@ class LexerTest {
         assertNull(matchTwo?.value, twoFalse)
 
     }
+
+    @Test
+    fun glob() = runTest {
+        val program = "*.txt"
+        val lexer = Lexer(program)
+        val tokens = lexer.tokens().toList()
+        println(tokens)
+    }
 }

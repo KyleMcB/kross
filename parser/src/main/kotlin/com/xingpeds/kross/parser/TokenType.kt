@@ -19,6 +19,14 @@ enum class TokenType(
         Regex("^(?:\\\\.|[^\\s${specialCharactersToRegex()}])+"),
         0
     ),          // Matches any contiguous string of non-whitespace characters at the start
+
+    // New token type for glob patterns like "*.txt"
+    WordWithGlob(
+        // 1) Lookahead `(?=.*\\*)` asserts there's at least one asterisk
+        // 2) `^(?:\\.|[^\\s${sc}])+$` ensures the entire token is valid "Word" chars
+        Regex("^(?=.*\\*)(?:\\\\.|[^\\s${specialCharactersToRegex()}])+$"),
+        1
+    ),
     Semicolon(Regex("^;"), 1),
     Pipe(Regex("^\\|"), 2),
     And(Regex("^&&"), 3),
