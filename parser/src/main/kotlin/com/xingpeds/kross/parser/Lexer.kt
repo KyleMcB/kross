@@ -62,6 +62,10 @@ class Lexer(
             TokenType.DoubleQuotedString -> Token.DoubleQuote(text, (atPosition..text.length + atPosition - 1))
             TokenType.LeftBracket -> Token.LeftBracket(atPosition..atPosition)
             TokenType.RightBracket -> Token.RightBracket(atPosition..atPosition)
+            TokenType.DoubleQuotedStringWithEnv -> Token.DoubleQuoteWithVar(
+                text,
+                (atPosition..text.length + atPosition - 1)
+            )
         }
     }
 }

@@ -36,5 +36,9 @@ enum class TokenType(
     Dollar(Regex("^\\$"), 7),
     LeftBracket(Regex("^\\{"), 6),
     RightBracket(Regex("^\\}"), 6),
+    DoubleQuotedStringWithEnv(
+        Regex("^\".*(?<!\\\\)\\$.*\""),
+        precedence = 8
+    ),
     EOF(Regex("^$"), 8);
 }

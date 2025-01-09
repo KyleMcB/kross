@@ -73,4 +73,10 @@ sealed class Token {
 
         override val type = TokenType.EOF
     }
+
+    data class DoubleQuoteWithVar(val text: String, override val position: IntRange) : Token() {
+
+        override val type: TokenType
+            get() = TokenType.DoubleQuotedStringWithEnv
+    }
 }
