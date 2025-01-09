@@ -1,13 +1,8 @@
 package com.xingpeds.kross.parser
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.test.runTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
+import kotlin.test.*
 
 class LexerTest {
     @Test
@@ -54,14 +49,13 @@ class LexerTest {
 
     @Test
     fun variableSubstitutionSimple() = runTest {
-        val singleThread = CoroutineScope(newFixedThreadPoolContext(1, "Lexer"))
         val program = "hello \$world"
-        val lexer = Lexer(program, singleThread)
+        val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
-        println(tokens)
-        assertEquals(2, tokens.size, "should have two tokens")
-//        assertEquals(Token.Word("hello", 0..4), tokens[0], "should be the expected token")
-//        assertEquals(Token.Word("\$world", 6..11), tokens[1], "should be the expected token")
+        assertIs<Token.Word>(tokens[0])
+        assertIs<Token.Dollar>(tokens[1])
+        assertIs<Token.Word>(tokens[2])
+
     }
 
     @Test
@@ -72,10 +66,8 @@ class LexerTest {
         println(program)
         val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
-        println(tokens)
         assertEquals(2, tokens.size, "should have two tokens")
-//        assertEquals(Token.Word("hello", 0..4), tokens[0], "should be the expected token")
-//        assertEquals(Token.Word("\${world}", 6..13), tokens[1], "should be the expected token")
+        assertIs<Token.DoubleQuoteWithVar>(tokens[0])
     }
 
     @Test
@@ -86,10 +78,9 @@ class LexerTest {
         println(program)
         val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
-        println(tokens)
+
         assertEquals(2, tokens.size, "should have two tokens")
-//        assertEquals(Token.Word("hello", 0..4), tokens[0], "should be the expected token")
-//        assertEquals(Token.Word("\${world}", 6..13), tokens[1], "should be the expected token")
+        assertIs<Token.DoubleQuoteWithVar>(tokens[0])
     }
 
     @Test
@@ -113,6 +104,7 @@ class LexerTest {
         val program = "*.txt"
         val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
-        println(tokens)
+        assertEquals(2, tokens.size, "should have one token")
+        assertEquals(Token.Glob("*.txt", 0..4), tokens[0], "should be the expected glob token")
     }
 }
