@@ -16,7 +16,7 @@ enum class TokenType(
      * always start the regex with a start of string matcher. This will make sure there is one or no matches
      */
     Word(
-        Regex("^[^\\s$sc]+"),
+        Regex("^(?:\\\\.|[^\\s${specialCharactersToRegex()}])+"),
         0
     ),          // Matches any contiguous string of non-whitespace characters at the start
     Semicolon(Regex("^;"), 1),

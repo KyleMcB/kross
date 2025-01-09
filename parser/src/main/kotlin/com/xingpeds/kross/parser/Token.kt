@@ -25,7 +25,14 @@ sealed class Token {
     }
 
     data class Word(
-        override val value: String, override val position: IntRange,
+        val rawValue: String,
+        override val position: IntRange,
+        override val value: String = rawValue.replace("\\ ", " ") // Replace escaped spaces
+            .replace("\\;", ";") // Replace escaped semicolon
+            .replace("\\|", "|") // Replace escaped pipe
+            .replace("\\&", "&") // Replace escaped ampersand
+            .replace("\\(", "(") // Replace escaped left parenthesis
+            .replace("\\)", ")") // Replace escaped right parenthesis,
     ) : Literal() {
         override val type = TokenType.Word
     }
