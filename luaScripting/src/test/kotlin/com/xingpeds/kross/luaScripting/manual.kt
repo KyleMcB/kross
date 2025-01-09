@@ -1,11 +1,74 @@
 package com.xingpeds.kross.luaScripting
 
-import org.luaj.vm2.LuaValue
-import org.luaj.vm2.Varargs
-import org.luaj.vm2.lib.VarArgFunction
+import org.luaj.vm2.*
+import org.luaj.vm2.compiler.LuaC
+import org.luaj.vm2.lib.*
+import org.luaj.vm2.lib.jse.JseIoLib
 import kotlin.test.Test
 
 class Manual {
+    @Test
+    fun one() {
+        val persistentTable = LuaTable()
+        val global1 = KrossLuaGlobal(persistentTable).apply {
+            load(BaseLib())
+            load(PackageLib())
+            load(Bit32Lib())
+            load(TableLib())
+            load(StringLib())
+            load(CoroutineLib())
+            load(JseIoLib())
+            load(MathLib())
+            load(OsLib())
+
+            LoadState.install(this)
+            LuaC.install(this)
+        }
+        val global2 = KrossLuaGlobal(persistentTable).apply {
+            LoadState.install(this)
+            LuaC.install(this)
+        }
+
+        fun luaprintln(str: String) {
+            println("LUA_PRINTLN: $str")
+            //kotlin.io.println()
+        }
+
+// Overwrite print function
+        global2["print"] = object : VarArgFunction() {
+            override fun invoke(args: Varargs): Varargs {
+                val tostring = global2["tostring"]
+                val out = (1..args.narg())
+                    .map { tostring.call(args.arg(it)).strvalue()!!.tojstring() }
+                luaprintln(out.joinToString("\t"))
+                return LuaValue.NONE
+            }
+        }
+        val table = LuaValue.tableOf(arrayOf(LuaString.valueOf("field"), LuaValue.valueOf(2)))
+        global1["table"] = table
+        global2["table"] = table
+        val inc = "table.field = table.field + 1"
+        val script = "print(table.field)"
+        val chunk = global1.load(inc)
+        val chunk2 = global2.load(script)
+        chunk.call()
+        chunk2.call()
+        val other = global2.load(script)
+        other.call()
+        println("kotlin")
+        val luaScript = "my_global_var = 10"
+        val chunky = global1.load(luaScript)
+        chunky.call()
+
+// Check if the global variable is set
+        val myGlobalVar = global2["my_global_var"]
+        if (myGlobalVar.isnil()) {
+            println("The global variable 'my_global_var' is not set.")
+        } else {
+            println("The global variable 'my_global_var' is set to: ${myGlobalVar.tojstring()}")
+        }
+    }
+
     @Test
     fun hi() {
         val globals = LuaEngine.global
