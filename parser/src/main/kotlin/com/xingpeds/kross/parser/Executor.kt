@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import java.io.File
 
+val singleDollarRegex = Regex("""(?<!\\)\$[a-zA-Z_][a-zA-Z0-9_]*""")
+
 class Executor(
     private val cwd: StateFlow<File>,
     private val makeExecutable: suspend (name: String) -> Executable,
@@ -130,6 +132,9 @@ class Executor(
                     } else
                         arg.value
                 }
+
+                is AST.Argument.DoubleQuoteWithVar -> expandDoubleQuoteWithVar(arg)
+                is AST.Argument.Glob -> TODO()
             }
         }
         return executable(
@@ -139,6 +144,26 @@ class Executor(
             shellState.environment.value,
             cwd.value
         )().also { results.add(it) }
+    }
+
+    private suspend fun expandDoubleQuoteWithVar(arg: AST.Argument.DoubleQuoteWithVar): String {
+        var text = arg.text
+        val env = this.shellState.environment.value
+        val wrappedLocations = wrappedDollarLocations(text)
+        wrappedLocations.forEach { wrapperVar ->
+            val varName = wrapperVar.substring(2, wrapperVar.length - 1)
+            val value = env[varName] ?: "null"
+            text = text.replace(wrapperVar, value)
+        }
+        return singleDollarRegex.findAll(text).toList().reversed().fold(text) { acc, matchResult ->
+            val varName = matchResult.value.drop(1)
+            val value = env[varName]
+            if (value == null) {
+                acc
+            } else {
+                acc.replace(matchResult.value, value)
+            }
+        }
     }
 
     private suspend fun exeCommandSub(arg: AST.Argument.CommandSubstitution): String {
@@ -169,4 +194,18 @@ class Executor(
 
         return output.toString().trim()
     }
+}
+
+fun wrappedDollarLocations(text: String): List<String> {
+    val wrappedRegex = Regex("(?<!\\\\)\\$\\{([^}]+)}")
+    return wrappedRegex.findAll(text).map {
+        it.value
+    }.toList()
+}
+
+fun simpleDollarLocations(text: String): List<Int> {
+    return singleDollarRegex.findAll(text).map {
+        val location = it.range.first
+        location
+    }.toList()
 }

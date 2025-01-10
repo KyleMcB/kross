@@ -612,6 +612,8 @@ val colorMap: Map<TokenType, Int?> = TokenType.entries.associate {
         TokenType.LeftBracket -> it to 0xFFFF00
         TokenType.RightBracket -> it to 0xFFFF00
         TokenType.EOF -> it to null
+        TokenType.WordWithGlob -> it to 0xFFFF00
+        TokenType.DoubleQuotedStringWithEnv -> it to 0xFFFF00
     }
 }
 
@@ -746,6 +748,22 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Semicolon -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.DoubleQuoteWithVar -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.Glob -> {
                     val text = content.substring(token.position)
                     green {
                         text(text)
