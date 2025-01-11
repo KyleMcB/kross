@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import java.io.File
+import java.nio.file.Files
 import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,13 +22,21 @@ import kotlin.time.Duration.Companion.seconds
 
 private fun log(any: Any) = println("--ExecutorTest: $any")
 class ExecutorTest {
+    val tempDir = Files.createTempDirectory("mockCWD").toFile()
+
+    init {
+        File(tempDir, "file1.txt").createNewFile()
+        File(tempDir, "file2.txt").createNewFile()
+        File(tempDir, "notes.md").createNewFile()
+        File(tempDir, "logfile.log").createNewFile()
+    }
 
     val processExecutable: (name: String) -> Executable = { _: String -> JavaOSProcess() }
-    val cwd = MutableStateFlow(File(System.getProperty("user.dir")))
+    val cwd = MutableStateFlow(tempDir)
     val mockShellState: ShellState = object : ShellState {
         val _environment = MutableStateFlow<Map<String, String>>(mapOf("world" to "hi"))
         override val currentDirectory: StateFlow<File>
-            get() = MutableStateFlow<File>(File("."))
+            get() = MutableStateFlow<File>(tempDir)
 
         override suspend fun changeDirectory(directory: File) {
             TODO("Not yet implemented")
@@ -525,6 +534,43 @@ class ExecutorTest {
         }.join()
         val expected = "hello $randomWord"
         assertEquals(expected, output.toString().trim())
+    }
+
+    @Test
+    fun globTest() = runTest(timeout = 10.seconds) {
+        val ast = AST.Program(
+            commands = listOf(
+                AST.Command.Pipeline(
+                    commands = listOf(
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("echo"),
+                            arguments = listOf(
+                                AST.Argument.Glob(text = "*.txt")
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        val pipe = Chan()
+        val executor =
+            Executor(
+                mockShellState.currentDirectory,
+                processExecutable,
+                pipes = Pipes(programOutput = pipe),
+                shellState = mockShellState
+            )
+        val output = StringBuilder()
+        CoroutineScope(Dispatchers.Default).launch {
+            launch {
+                executor.execute(ast)
+            }
+            launch {
+                pipe.connectTo(output.asOutputStream())
+                pipe.close()
+            }
+        }.join()
+        assertEquals("file2.txt file1.txt", output.toString().trim())
     }
 
 }
