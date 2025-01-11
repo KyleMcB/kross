@@ -1,0 +1,49 @@
+name: Build and Publish with Homebrew Formula Update
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Checkout Kotter Fork
+        uses: actions/checkout@v3
+        with:
+          repository: KyleMcB/kotter
+          path: kotter
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Extract Tag Name
+        id: extract_tag
+        run: echo "tag_name=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Build and Test
+        run: |
+          ./gradlew test
+          ./gradlew assemble
+
+      - name: Create or Update GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          tag: ${{ env.tag_name }}
+          name: "Release ${{ env.tag_name }}"
+          body: "This is the latest build for the tag ${{ env.tag_name }}."
+          draft: false
+          prerelease: true
+          artifacts: kross/build/distributions/*.zip
+          replacesArtifacts: true
+          removeArtifacts: true
+          allowUpdates: true

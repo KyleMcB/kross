@@ -1,12 +1,8 @@
-name: Bump Homebrew Formula
+name: Build and Publish with Homebrew Formula Update
 
 on:
-  #  release:
-  #    types: [ released ]
-  #   Uncomment below to trigger on tag push instead of release events
-  push:
-    tags:
-      - "*"
+  release:
+    types: [ released ]
 
 jobs:
   update-formula:
@@ -32,9 +28,5 @@ jobs:
           tap: KyleMcB/kross
           # Formula name, required
           formula: kross
-          # Optional, will be determined automatically
-          tag: ${{ github.ref }}
-          # Optional, will be determined automatically
-          revision: ${{ github.sha }}
           # Optional, if don't want to check for already open PRs
           force: false
