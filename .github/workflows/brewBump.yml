@@ -1,12 +1,12 @@
 name: Bump Homebrew Formula
 
 on:
-  release:
-    types: [ released ]
-  # Uncomment below to trigger on tag push instead of release events
-  # push:
-  #   tags:
-  #     - "*"
+  #  release:
+  #    types: [ released ]
+  #   Uncomment below to trigger on tag push instead of release events
+  push:
+    tags:
+      - "*"
 
 jobs:
   update-formula:
