@@ -3,13 +3,18 @@ package com.xingpeds.kross.parser
 import com.xingpeds.kross.entities.*
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
+import com.xingpeds.kross.state.ShellState
 import com.xingpeds.kross.state.ShellStateObject
+import com.xingpeds.kross.state.UserCommandHistory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import java.io.File
+import java.nio.file.Files
 import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -17,9 +22,43 @@ import kotlin.time.Duration.Companion.seconds
 
 private fun log(any: Any) = println("--ExecutorTest: $any")
 class ExecutorTest {
+    val tempDir = Files.createTempDirectory("mockCWD").toFile()
+
+    init {
+        File(tempDir, "file1.txt").createNewFile()
+        File(tempDir, "file2.txt").createNewFile()
+        File(tempDir, "notes.md").createNewFile()
+        File(tempDir, "logfile.log").createNewFile()
+    }
 
     val processExecutable: (name: String) -> Executable = { _: String -> JavaOSProcess() }
-    val cwd = MutableStateFlow(File(System.getProperty("user.dir")))
+    val cwd = MutableStateFlow(tempDir)
+    val mockShellState: ShellState = object : ShellState {
+        val _environment = MutableStateFlow<Map<String, String>>(mapOf("world" to "hi"))
+        override val currentDirectory: StateFlow<File>
+            get() = MutableStateFlow<File>(tempDir)
+
+        override suspend fun changeDirectory(directory: File) {
+            TODO("Not yet implemented")
+        }
+
+        override val environment: StateFlow<Map<String, String>>
+            get() = _environment
+
+        override suspend fun setVariable(name: String, value: String) {
+            _environment.update {
+                it.toMutableMap().apply { put(name, value) }
+            }
+        }
+
+        override suspend fun addHistory(command: String) {
+            TODO("Not yet implemented")
+        }
+
+        override val history: StateFlow<UserCommandHistory>
+            get() = TODO("Not yet implemented")
+
+    }
 
     @Test
     fun simpleEcho() = runTest(timeout = 10.seconds) {
@@ -425,6 +464,113 @@ class ExecutorTest {
             }
         }.join()
         assertEquals(2, output.toString().count { it == ':' })
+    }
+
+    @Test
+    fun varInQuotesWrapped() = runTest(timeout = 10.seconds) {
+        val ast = AST.Program(
+            commands = listOf(
+                AST.Command.Pipeline(
+                    commands = listOf(
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("echo"),
+                            arguments = listOf(
+                                AST.Argument.DoubleQuoteWithVar("hello \${world}")
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        val randomWord = (Int.MIN_VALUE..Int.MAX_VALUE).random().toString()
+        mockShellState.setVariable("world", randomWord)
+        val output = StringBuilder()
+        val pipe = Chan()
+        val executor = Executor(cwd, processExecutable, Pipes(programOutput = pipe), mockShellState)
+        CoroutineScope(Dispatchers.Default).launch {
+            launch {
+
+                executor.execute(ast)
+            }
+            launch {
+                pipe.connectTo(output.asOutputStream())
+                pipe.close()
+            }
+        }.join()
+        val expected = "hello $randomWord"
+        assertEquals(expected, output.toString().trim())
+    }
+
+    @Test
+    fun varInQuotes() = runTest(timeout = 10.seconds) {
+        val ast = AST.Program(
+            commands = listOf(
+                AST.Command.Pipeline(
+                    commands = listOf(
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("echo"),
+                            arguments = listOf(
+                                AST.Argument.DoubleQuoteWithVar("hello \$world")
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        val randomWord = (Int.MIN_VALUE..Int.MAX_VALUE).random().toString()
+        mockShellState.setVariable("world", randomWord)
+        val output = StringBuilder()
+        val pipe = Chan()
+        val executor = Executor(cwd, processExecutable, Pipes(programOutput = pipe), mockShellState)
+        CoroutineScope(Dispatchers.Default).launch {
+            launch {
+
+                executor.execute(ast)
+            }
+            launch {
+                pipe.connectTo(output.asOutputStream())
+                pipe.close()
+            }
+        }.join()
+        val expected = "hello $randomWord"
+        assertEquals(expected, output.toString().trim())
+    }
+
+    @Test
+    fun globTest() = runTest(timeout = 10.seconds) {
+        val ast = AST.Program(
+            commands = listOf(
+                AST.Command.Pipeline(
+                    commands = listOf(
+                        AST.SimpleCommand(
+                            name = AST.CommandName.Word("echo"),
+                            arguments = listOf(
+                                AST.Argument.Glob(text = "*.txt")
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        val pipe = Chan()
+        val executor =
+            Executor(
+                mockShellState.currentDirectory,
+                processExecutable,
+                pipes = Pipes(programOutput = pipe),
+                shellState = mockShellState
+            )
+        val output = StringBuilder()
+        CoroutineScope(Dispatchers.Default).launch {
+            launch {
+                executor.execute(ast)
+            }
+            launch {
+                pipe.connectTo(output.asOutputStream())
+                pipe.close()
+            }
+        }.join()
+        assertEquals("file2.txt file1.txt", output.toString().trim())
     }
 
 }

@@ -78,5 +78,11 @@ sealed class AST {
 
         @Serializable
         data class CommandSubstitution(val commandLine: Program) : Argument()
+
+        @Serializable
+        data class DoubleQuoteWithVar(val text: String) : Argument()
+
+        @Serializable
+        data class Glob(val text: String) : Argument()
     }
 }

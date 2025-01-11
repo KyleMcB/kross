@@ -101,17 +101,29 @@ class Parser {
 
     private suspend fun parseArgumentList(): List<AST.Argument> {
         val args = mutableListOf<AST.Argument>()
-        while (peek() is Token.Dollar || peek() is Token.LeftParen || peek() is Token.Word || peek() is Token.SingleQuote || peek() is Token.DoubleQuote) {
+        while (peek() is Token.DoubleQuoteWithVar || peek() is Token.Glob || peek() is Token.Dollar || peek() is Token.LeftParen || peek() is Token.Word || peek() is Token.SingleQuote || peek() is Token.DoubleQuote) {
             when (peek()) {
                 is Token.Dollar -> args.add(parseVariable())
                 is Token.Word -> args.add(parseWordArgument())
                 is Token.LeftParen -> args.add(parseCommandSubstitution())
                 is Token.SingleQuote -> args.add(parseSingleQuote())
                 is Token.DoubleQuote -> args.add(parseDoubleQuote())
+                is Token.DoubleQuoteWithVar -> args.add(parseDoubleQuoteWithVar())
+                is Token.Glob -> args.add(parseGlob())
                 else -> throw Exception("") // this line is unreachable because of the while loop condition
             }
         }
         return args
+    }
+
+    private suspend fun parseGlob(): AST.Argument.Glob {
+        val token = eat(TokenType.WordWithGlob) as Token.Glob
+        return AST.Argument.Glob(text = token.text)
+    }
+
+    private suspend fun parseDoubleQuoteWithVar(): AST.Argument.DoubleQuoteWithVar {
+        val token = eat(TokenType.DoubleQuotedStringWithEnv) as Token.DoubleQuoteWithVar
+        return AST.Argument.DoubleQuoteWithVar(text = token.text)
     }
 
     private fun parseDoubleQuote(): AST.Argument.WordArgument {
