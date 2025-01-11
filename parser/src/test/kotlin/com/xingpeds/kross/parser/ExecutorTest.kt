@@ -572,6 +572,7 @@ class ExecutorTest {
             }
         }.join()
         val outputSet = output.toString().trim().split(" ").toSet()
+        println(outputSet)
         assertEquals(setOf("file1.txt", "file2.txt"), outputSet)
     }
 
