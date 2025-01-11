@@ -250,11 +250,6 @@ fun main() = runBlocking {
                 }
             }.runUntilSignal {
 
-                collectionScope.launch {
-                    bufferState.collect { (content, cursor, tokens) ->
-                        tokens.debug("tokens")
-                    }
-                }
                 val channel = Channel<Int>(Channel.UNLIMITED)
                 val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
@@ -787,7 +782,12 @@ suspend fun processInput(line: String) {
         val parser = Parser()
         val ast = parser.parse(lexer.tokens())
         val makeExecutable: suspend (name: String) -> Executable = { name ->
-            if (LuaEngine.userFuncExists(name)) {
+
+            // Check if 'name' is a valid executable file
+            val executableFile = File(state.currentDirectory.value, name)
+            if (executableFile.exists() && executableFile.canExecute() && executableFile.isFile) {
+                JavaOSProcess()
+            } else if (LuaEngine.userFuncExists(name)) {
                 LuaExecutable()
             } else if (Builtin.builtinFuns.containsKey(name)) {
                 BuiltInExecutable(Builtin.builtinFuns[name]!!)
@@ -808,7 +808,6 @@ suspend fun processInput(line: String) {
                         throw Exception("Program '$name' not found on PATH.")
                     }
                 }
-
             }
         }
         val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
