@@ -84,5 +84,8 @@ sealed class AST {
 
         @Serializable
         data class Glob(val text: String) : Argument()
+
+        @Serializable
+        data class RecursiveGlob(val text: String) : Argument()
     }
 }

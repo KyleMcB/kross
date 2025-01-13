@@ -438,7 +438,7 @@ fun main() = runBlocking {
                         val executor = JavaOSProcess()
                         executor.invoke(
                             "fzf",
-                            args = listOf("--query=${bufferState.value.content}", "-1"),
+                            args = listOf("--height=~50%", "--query=${bufferState.value.content}", "-1"),
                             pipes = pipes,
                             env = state.environment.value,
                             cwd = state.currentDirectory.value
@@ -470,7 +470,7 @@ fun main() = runBlocking {
                     Channel<Int>(Channel.UNLIMITED)
                 } else null
                 val pipes = Pipes(programInput = inputPipe, programOutput = outputPipe)
-                var fzf_exit_code = -99
+                var fzfExitCode = -99
                 fzfScope.launch {
                     launch {
                         outputPipe.connectTo(output.asOutputStream())
@@ -482,9 +482,9 @@ fun main() = runBlocking {
                         val executor = JavaOSProcess()
                         val lastWord = words.lastOrNull()
                         val args = if (lastWord != null) {
-                            listOf("--query=$lastWord", "-1")
+                            listOf("--height=~50", "--query=$lastWord", "-1")
                         } else emptyList()
-                        fzf_exit_code = executor.invoke(
+                        fzfExitCode = executor.invoke(
                             "fzf",
                             args = args,
                             pipes = pipes,
@@ -506,7 +506,7 @@ fun main() = runBlocking {
                             words.dropLast(1).joinToString(separator = " ") + " " + outputstring
                         )
                     }
-                } else if (fzf_exit_code != 0) {
+                } else if (fzfExitCode != 0) {
                     heldOverOuput.emit(bufferState.value.content)
                 }
             }
@@ -604,11 +604,10 @@ val colorMap: Map<TokenType, Int?> = TokenType.entries.associate {
         TokenType.SingleQuotedString -> it to 0xFFFF00
         TokenType.DoubleQuotedString -> it to 0xFFFF00
         TokenType.Dollar -> it to 0xFFFF00
-        TokenType.LeftBracket -> it to 0xFFFF00
-        TokenType.RightBracket -> it to 0xFFFF00
         TokenType.EOF -> it to null
         TokenType.WordWithGlob -> it to 0xFFFF00
         TokenType.DoubleQuotedStringWithEnv -> it to 0xFFFF00
+        TokenType.WordWithDoubleGlob -> it to 0xFFFF00
     }
 }
 
@@ -672,13 +671,6 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.EOF -> Unit
-                is Token.LeftBracket -> {
-                    val text = content.substring(token.position)
-                    green {
-                        text(text)
-                    }
-                    index += text.length
-                }
 
                 is Token.LeftParen -> {
                     val text = content.substring(token.position)
@@ -726,14 +718,6 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                     index += text.length
                 }
 
-                is Token.RightBracket -> {
-                    val text = content.substring(token.position)
-                    green {
-                        text(text)
-                    }
-                    index += text.length
-                }
-
                 is Token.RightParen -> {
                     val text = content.substring(token.position)
                     green {
@@ -759,6 +743,14 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Glob -> {
+                    val text = content.substring(token.position)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.RecursiveGlob -> {
                     val text = content.substring(token.position)
                     green {
                         text(text)

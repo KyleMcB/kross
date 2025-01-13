@@ -138,6 +138,7 @@ class Executor(
 
                 is AST.Argument.DoubleQuoteWithVar -> listOf(expandDoubleQuoteWithVar(arg))
                 is AST.Argument.Glob -> expandGlobArgument(arg)
+                is AST.Argument.RecursiveGlob -> expandRecursiveGlob(arg)
             }
         }.toList()
         return executable(
@@ -147,6 +148,30 @@ class Executor(
             shellState.environment.value,
             cwd.value
         )().also { results.add(it) }
+    }
+
+    private suspend fun expandRecursiveGlob(arg: AST.Argument.RecursiveGlob): Iterable<String> {
+        fun listAllFilesRecursively(file: File): List<File> {
+            return file.listFiles()?.flatMap {
+                if (it.isDirectory) listAllFilesRecursively(it) + it
+                else listOf(it)
+            } ?: emptyList()
+        }
+
+        val pattern = arg.text // The glob pattern, e.g., "*.txt"
+        val cwdFile = cwd.value // The current working directory
+
+        // Get the list of files in the current directory
+        val allFilesRecursive = listAllFilesRecursively(cwdFile)
+        val pathMatcher = FileSystems.getDefault().getPathMatcher("glob:$pattern")
+        // Filter files by matching the filenames to the glob pattern
+        return coroutineScope {
+            allFilesRecursive.parallelMap(this) { file ->
+                if (pathMatcher.matches(file.toPath().fileName)) {
+                    file.canonicalPath.replace(cwdFile.canonicalPath + "/", "")
+                } else null
+            }.filterNotNull()
+        }
     }
 
 
