@@ -8,45 +8,64 @@ private fun specialCharactersToRegex(): String {
 
 private val sc: String = specialCharactersToRegex()
 
+interface Matcher {
+    fun find(text: String): String?
+}
+
+data class RegexMatcher(val pattern: String, val regex: Regex = Regex(pattern)) : Matcher {
+    override fun find(text: String): String? {
+        return regex.find(text)?.value
+    }
+}
+
+object TwoStarMatcher : Matcher {
+    override fun find(text: String): String? {
+        // get the first word out of text
+        val word = text.split("\\s+".toRegex()).firstOrNull()
+        return if (word?.count { it == '*' } ?: 0 > 1) word else null
+    }
+}
+
 enum class TokenType(
-    val matcher: Regex,
+    val matcher: Matcher,
     val precedence: Int
 ) {
     /**
      * always start the regex with a start of string matcher. This will make sure there is one or no matches
      */
     Word(
-        Regex("^(?:\\\\.|[^\\s${specialCharactersToRegex()}])+"),
+        RegexMatcher("^(?:\\\\.|[^\\s${specialCharactersToRegex()}])+"),
         0
     ),          // Matches any contiguous string of non-whitespace characters at the start
 
-    // New token type for glob patterns like "*.txt"
     WordWithGlob(
         // 1) Lookahead `(?=.*\\*)` asserts there's at least one asterisk
         // 2) `^(?:\\.|[^\\s${sc}])+$` ensures the entire token is valid "Word" chars
-        Regex("^(?=.*\\*)(?:\\\\.|[^\\s${specialCharactersToRegex()}])+$"),
+        RegexMatcher("^(?=.*\\*)(?:\\\\.|[^\\s${specialCharactersToRegex()}])+$"),
         1
     ),
-    Semicolon(Regex("^;"), 1),
-    Pipe(Regex("^\\|"), 2),
-    And(Regex("^&&"), 3),
-    Or(Regex("^\\|\\|"), 4),
-    LeftParen(Regex("^\\("), 6),
-    RightParen(Regex("^\\)"), 6),
+    WordWithDoubleGlob(
+        TwoStarMatcher,
+        2
+    ),
+    Semicolon(RegexMatcher("^;"), 1),
+    Pipe(RegexMatcher("^\\|"), 2),
+    And(RegexMatcher("^&&"), 3),
+    Or(RegexMatcher("^\\|\\|"), 4),
+    LeftParen(RegexMatcher("^\\("), 6),
+    RightParen(RegexMatcher("^\\)"), 6),
     SingleQuotedString(
-        Regex("^'([^'\\\\]|\\\\.)*'"),
+        RegexMatcher("^'([^'\\\\]|\\\\.)*'"),
         precedence = 7
     ),  // Handles escaped characters within single quotes
     DoubleQuotedString(
-        Regex("^\"([^\"\\\\]|\\\\.)*\""),
+        RegexMatcher("^\"([^\"\\\\]|\\\\.)*\""),
         precedence = 7
     ), // Handles escaped characters within double quotes
-    Dollar(Regex("^\\$"), 7),
-    LeftBracket(Regex("^\\{"), 6),
-    RightBracket(Regex("^\\}"), 6),
+    Dollar(RegexMatcher("^\\$"), 7),
     DoubleQuotedStringWithEnv(
-        Regex("^\".*(?<!\\\\)\\$.*\""),
+        RegexMatcher("^\".*(?<!\\\\)\\$.*\""),
         precedence = 8
     ),
-    EOF(Regex("^$"), 8);
+    EOF(RegexMatcher("^$"), 8);
 }

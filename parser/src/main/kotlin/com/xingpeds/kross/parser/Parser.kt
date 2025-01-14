@@ -101,7 +101,7 @@ class Parser {
 
     private suspend fun parseArgumentList(): List<AST.Argument> {
         val args = mutableListOf<AST.Argument>()
-        while (peek() is Token.DoubleQuoteWithVar || peek() is Token.Glob || peek() is Token.Dollar || peek() is Token.LeftParen || peek() is Token.Word || peek() is Token.SingleQuote || peek() is Token.DoubleQuote) {
+        while (peek() is Token.RecursiveGlob || peek() is Token.DoubleQuoteWithVar || peek() is Token.Glob || peek() is Token.Dollar || peek() is Token.LeftParen || peek() is Token.Word || peek() is Token.SingleQuote || peek() is Token.DoubleQuote) {
             when (peek()) {
                 is Token.Dollar -> args.add(parseVariable())
                 is Token.Word -> args.add(parseWordArgument())
@@ -110,10 +110,16 @@ class Parser {
                 is Token.DoubleQuote -> args.add(parseDoubleQuote())
                 is Token.DoubleQuoteWithVar -> args.add(parseDoubleQuoteWithVar())
                 is Token.Glob -> args.add(parseGlob())
+                is Token.RecursiveGlob -> args.add(parseRecursiveGlob())
                 else -> throw Exception("") // this line is unreachable because of the while loop condition
             }
         }
         return args
+    }
+
+    private suspend fun parseRecursiveGlob(): AST.Argument.RecursiveGlob {
+        val token = eat(TokenType.WordWithDoubleGlob) as Token.RecursiveGlob
+        return AST.Argument.RecursiveGlob(text = token.text)
     }
 
     private suspend fun parseGlob(): AST.Argument.Glob {
@@ -139,11 +145,6 @@ class Parser {
     private suspend fun parseVariable(): AST.Argument.VariableSubstitution {
         eat(TokenType.Dollar)
         var cleanUp: () -> Unit = {}
-        if (peek() is Token.LeftBracket) {
-            eat(TokenType.LeftBracket)
-            cleanUp = { val nothing = eat(TokenType.RightBracket) }
-        }
-        // parse the variable
         val varNameToken = eat(TokenType.Word) as Token.Word
         cleanUp()
         return AST.Argument.VariableSubstitution(varNameToken.value)

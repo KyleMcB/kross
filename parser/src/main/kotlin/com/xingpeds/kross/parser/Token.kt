@@ -61,14 +61,6 @@ sealed class Token {
         override val type = TokenType.RightParen
     }
 
-    data class RightBracket(override val position: IntRange) : Token() {
-        override val type: TokenType = TokenType.RightBracket
-    }
-
-    data class LeftBracket(override val position: IntRange) : Token() {
-        override val type: TokenType = TokenType.LeftBracket
-    }
-
     data class EOF(override val position: IntRange = 0..0) : Token() {
 
         override val type = TokenType.EOF
@@ -83,5 +75,10 @@ sealed class Token {
     data class Glob(val text: String, override val position: IntRange) : Token() {
         override val type: TokenType
             get() = TokenType.WordWithGlob
+    }
+
+    data class RecursiveGlob(val text: String, override val position: IntRange) : Token() {
+        override val type: TokenType
+            get() = TokenType.WordWithDoubleGlob
     }
 }

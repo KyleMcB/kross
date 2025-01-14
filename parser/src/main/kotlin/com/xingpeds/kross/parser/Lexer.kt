@@ -34,8 +34,7 @@ class Lexer(
                 .maxByOrNull { it.second.precedence } // Choose the highest precedence match
 
             if (match != null) {
-                val (matchResult, tokenType) = match
-                val tokenText = matchResult.value
+                val (tokenText, tokenType) = match
                 val token = createTokenFrom(tokenText, tokenType, cursor)
                 cursor += tokenText.length
                 emit(token)
@@ -60,14 +59,13 @@ class Lexer(
             TokenType.EOF -> Token.EOF(atPosition..atPosition)
             TokenType.SingleQuotedString -> Token.SingleQuote(text, (atPosition..text.length + atPosition - 1))
             TokenType.DoubleQuotedString -> Token.DoubleQuote(text, (atPosition..text.length + atPosition - 1))
-            TokenType.LeftBracket -> Token.LeftBracket(atPosition..atPosition)
-            TokenType.RightBracket -> Token.RightBracket(atPosition..atPosition)
             TokenType.DoubleQuotedStringWithEnv -> Token.DoubleQuoteWithVar(
                 text,
                 (atPosition..text.length + atPosition - 1)
             )
 
             TokenType.WordWithGlob -> Token.Glob(text, (atPosition..text.length + atPosition - 1))
+            TokenType.WordWithDoubleGlob -> Token.RecursiveGlob(text, (atPosition..text.length + atPosition - 1))
         }
     }
 }

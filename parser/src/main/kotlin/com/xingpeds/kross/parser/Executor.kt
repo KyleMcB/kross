@@ -105,8 +105,7 @@ class Executor(
                             pipelist.add(pipe)
                             jobs += launch {
                                 exeSimpleCommand(
-                                    command,
-                                    pipes.copy(programOutput = pipe, programInput = previousPipe)
+                                    command, pipes.copy(programOutput = pipe, programInput = previousPipe)
                                 )
                             }
                         }
@@ -132,21 +131,41 @@ class Executor(
                     val text = arg.value
                     if (text.startsWith("~")) {
                         listOf(text.replaceFirst("~", System.getProperty("user.home")))
-                    } else
-                        listOf(arg.value)
+                    } else listOf(arg.value)
                 }
 
                 is AST.Argument.DoubleQuoteWithVar -> listOf(expandDoubleQuoteWithVar(arg))
                 is AST.Argument.Glob -> expandGlobArgument(arg)
+                is AST.Argument.RecursiveGlob -> expandRecursiveGlob(arg)
             }
         }.toList()
         return executable(
-            commandName,
-            resolvedArguments,
-            pipes,
-            shellState.environment.value,
-            cwd.value
+            commandName, resolvedArguments, pipes, shellState.environment.value, cwd.value
         )().also { results.add(it) }
+    }
+
+    private suspend fun expandRecursiveGlob(arg: AST.Argument.RecursiveGlob): Iterable<String> {
+        fun listAllFilesRecursively(file: File): List<File> {
+            return file.listFiles()?.flatMap {
+                if (it.isDirectory) listAllFilesRecursively(it) + it
+                else listOf(it)
+            } ?: emptyList()
+        }
+
+        val pattern = arg.text // The glob pattern, e.g., "*.txt"
+        val cwdFile = cwd.value // The current working directory
+
+        // Get the list of files in the current directory
+        val allFilesRecursive = listAllFilesRecursively(cwdFile)
+        val pathMatcher = FileSystems.getDefault().getPathMatcher("glob:$pattern")
+        // Filter files by matching the filenames to the glob pattern
+        return coroutineScope {
+            allFilesRecursive.parallelMap(this) { file ->
+                if (pathMatcher.matches(file.toPath().fileName)) {
+                    file.canonicalPath.replace(cwdFile.canonicalPath + "/", "")
+                } else null
+            }.filterNotNull()
+        }
     }
 
 
@@ -158,8 +177,7 @@ class Executor(
         val filesInCwd = cwdFile.listFiles()?.filter { !it.isHidden } ?: emptyList()
         val pathMatcher = FileSystems.getDefault().getPathMatcher("glob:$pattern")
         // Filter files by matching the filenames to the glob pattern
-        val matches = filesInCwd
-            .filter { pathMatcher.matches(it.toPath().fileName) }.map { it.name }
+        val matches = filesInCwd.filter { pathMatcher.matches(it.toPath().fileName) }.map { it.name }
         return matches
     }
 
@@ -190,13 +208,12 @@ class Executor(
         inPipe.close()
         coroutineScope {
             launch {
-                val executor =
-                    Executor(
-                        cwd,
-                        makeExecutable,
-                        shellState = shellState,
-                        pipes = Pipes(programOutput = pipe, programInput = inPipe)
-                    )
+                val executor = Executor(
+                    cwd,
+                    makeExecutable,
+                    shellState = shellState,
+                    pipes = Pipes(programOutput = pipe, programInput = inPipe)
+                )
                 val codes = executor.execute(arg.commandLine)
                 results.addAll(codes)
                 codes.debug("subcommand return codes")
@@ -207,8 +224,6 @@ class Executor(
 
             }
         }
-        Log.info("return subcommand")
-
         return output.toString().trim()
     }
 }
@@ -217,12 +232,5 @@ fun wrappedDollarLocations(text: String): List<String> {
     val wrappedRegex = Regex("(?<!\\\\)\\$\\{([^}]+)}")
     return wrappedRegex.findAll(text).map {
         it.value
-    }.toList()
-}
-
-fun simpleDollarLocations(text: String): List<Int> {
-    return singleDollarRegex.findAll(text).map {
-        val location = it.range.first
-        location
     }.toList()
 }
