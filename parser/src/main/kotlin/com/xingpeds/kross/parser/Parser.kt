@@ -145,12 +145,6 @@ class Parser {
     private suspend fun parseVariable(): AST.Argument.VariableSubstitution {
         eat(TokenType.Dollar)
         var cleanUp: () -> Unit = {}
-        // turn off ${var} support for now
-//        if (peek() is Token.LeftBracket) {
-//            eat(TokenType.LeftBracket)
-//            cleanUp = { val nothing = eat(TokenType.RightBracket) }
-//        }
-        // parse the variable
         val varNameToken = eat(TokenType.Word) as Token.Word
         cleanUp()
         return AST.Argument.VariableSubstitution(varNameToken.value)

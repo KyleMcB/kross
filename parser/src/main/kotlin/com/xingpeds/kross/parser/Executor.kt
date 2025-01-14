@@ -105,8 +105,7 @@ class Executor(
                             pipelist.add(pipe)
                             jobs += launch {
                                 exeSimpleCommand(
-                                    command,
-                                    pipes.copy(programOutput = pipe, programInput = previousPipe)
+                                    command, pipes.copy(programOutput = pipe, programInput = previousPipe)
                                 )
                             }
                         }
@@ -132,8 +131,7 @@ class Executor(
                     val text = arg.value
                     if (text.startsWith("~")) {
                         listOf(text.replaceFirst("~", System.getProperty("user.home")))
-                    } else
-                        listOf(arg.value)
+                    } else listOf(arg.value)
                 }
 
                 is AST.Argument.DoubleQuoteWithVar -> listOf(expandDoubleQuoteWithVar(arg))
@@ -142,11 +140,7 @@ class Executor(
             }
         }.toList()
         return executable(
-            commandName,
-            resolvedArguments,
-            pipes,
-            shellState.environment.value,
-            cwd.value
+            commandName, resolvedArguments, pipes, shellState.environment.value, cwd.value
         )().also { results.add(it) }
     }
 
@@ -183,8 +177,7 @@ class Executor(
         val filesInCwd = cwdFile.listFiles()?.filter { !it.isHidden } ?: emptyList()
         val pathMatcher = FileSystems.getDefault().getPathMatcher("glob:$pattern")
         // Filter files by matching the filenames to the glob pattern
-        val matches = filesInCwd
-            .filter { pathMatcher.matches(it.toPath().fileName) }.map { it.name }
+        val matches = filesInCwd.filter { pathMatcher.matches(it.toPath().fileName) }.map { it.name }
         return matches
     }
 
@@ -215,13 +208,12 @@ class Executor(
         inPipe.close()
         coroutineScope {
             launch {
-                val executor =
-                    Executor(
-                        cwd,
-                        makeExecutable,
-                        shellState = shellState,
-                        pipes = Pipes(programOutput = pipe, programInput = inPipe)
-                    )
+                val executor = Executor(
+                    cwd,
+                    makeExecutable,
+                    shellState = shellState,
+                    pipes = Pipes(programOutput = pipe, programInput = inPipe)
+                )
                 val codes = executor.execute(arg.commandLine)
                 results.addAll(codes)
                 codes.debug("subcommand return codes")
@@ -232,8 +224,6 @@ class Executor(
 
             }
         }
-        Log.info("return subcommand")
-
         return output.toString().trim()
     }
 }
@@ -242,12 +232,5 @@ fun wrappedDollarLocations(text: String): List<String> {
     val wrappedRegex = Regex("(?<!\\\\)\\$\\{([^}]+)}")
     return wrappedRegex.findAll(text).map {
         it.value
-    }.toList()
-}
-
-fun simpleDollarLocations(text: String): List<Int> {
-    return singleDollarRegex.findAll(text).map {
-        val location = it.range.first
-        location
     }.toList()
 }
