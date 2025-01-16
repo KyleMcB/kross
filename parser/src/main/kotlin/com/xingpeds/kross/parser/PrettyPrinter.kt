@@ -1,4 +1,7 @@
-package com.xingpeds.kross.entities
+package com.xingpeds.kross.parser
+
+import com.xingpeds.kross.entities.AST
+import com.xingpeds.kross.entities.ASTVisitor
 
 class PrettyPrinter : ASTVisitor<String> {
     override fun visitProgram(program: AST.Program): String {
@@ -19,7 +22,7 @@ class PrettyPrinter : ASTVisitor<String> {
 
     override fun visitSimpleCommand(simple: AST.SimpleCommand): String {
         val args = simple.arguments.joinToString(" ") { it.accept(this) }
-        return "${simple.name} $args"
+        return "${simple.name.value} $args".trim()
     }
 
     override fun visitWordArgument(arg: AST.Argument.WordArgument): String {
@@ -27,11 +30,11 @@ class PrettyPrinter : ASTVisitor<String> {
     }
 
     override fun visitVariableSubstitution(arg: AST.Argument.VariableSubstitution): String {
-        return "\${${arg.variableName}}"
+        return "\$${arg.variableName}"
     }
 
     override fun visitCommandSubstitution(arg: AST.Argument.CommandSubstitution): String {
-        return "$(${arg.commandLine.accept(this)})"
+        return "(${arg.commandLine.accept(this)})"
     }
 
     override fun visitDoubleQuoteWithVar(doubleQuoteWithVar: AST.Argument.DoubleQuoteWithVar): String {
