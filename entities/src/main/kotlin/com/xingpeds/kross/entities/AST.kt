@@ -21,8 +21,12 @@ typealias Sequence = List<AST.Command>
 
 @Serializable
 sealed class AST {
+    abstract fun <R> accept(visitor: ASTVisitor<R>): R
+
     @Serializable
-    data class Program(val commands: Sequence) : AST()
+    data class Program(val commands: Sequence) : AST() {
+        override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitProgram(this)
+    }
 
 
     /**
@@ -37,13 +41,19 @@ sealed class AST {
          * e.g. cmd1 | cmd2 | cmd3
          */
         @Serializable
-        data class Pipeline(val commands: List<SimpleCommand>) : Command()
+        data class Pipeline(val commands: List<SimpleCommand>) : Command() {
+            override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitPipeline(this)
+        }
 
         @Serializable
-        data class And(val left: Command, val right: Command) : Command()
+        data class And(val left: Command, val right: Command) : Command() {
+            override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitAnd(this)
+        }
 
         @Serializable
-        data class Or(val left: Command, val right: Command) : Command()
+        data class Or(val left: Command, val right: Command) : Command() {
+            override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitOr(this)
+        }
     }
 
 
@@ -55,7 +65,9 @@ sealed class AST {
     data class SimpleCommand(
         val name: CommandName,
         val arguments: List<Argument> = emptyList()
-    ) : AST()
+    ) : AST() {
+        override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitSimpleCommand(this)
+    }
 
     @Serializable
     sealed class CommandName {
@@ -71,21 +83,33 @@ sealed class AST {
     @Serializable
     sealed class Argument : AST() {
         @Serializable
-        data class WordArgument(val value: String) : Argument()
+        data class WordArgument(val value: String) : Argument() {
+            override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitWordArgument(this)
+        }
 
         @Serializable
-        data class VariableSubstitution(val variableName: String) : Argument()
+        data class VariableSubstitution(val variableName: String) : Argument() {
+            override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitVariableSubstitution(this)
+        }
 
         @Serializable
-        data class CommandSubstitution(val commandLine: Program) : Argument()
+        data class CommandSubstitution(val commandLine: Program) : Argument() {
+            override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitCommandSubstitution(this)
+        }
 
         @Serializable
-        data class DoubleQuoteWithVar(val text: String) : Argument()
+        data class DoubleQuoteWithVar(val text: String) : Argument() {
+            override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitDoubleQuoteWithVar(this)
+        }
 
         @Serializable
-        data class Glob(val text: String) : Argument()
+        data class Glob(val text: String) : Argument() {
+            override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitGlob(this)
+        }
 
         @Serializable
-        data class RecursiveGlob(val text: String) : Argument()
+        data class RecursiveGlob(val text: String) : Argument() {
+            override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitRecursiveGlob(this)
+        }
     }
 }
