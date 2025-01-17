@@ -12,5 +12,6 @@ interface ASTVisitor<T> {
     fun visitDoubleQuoteWithVar(doubleQuoteWithVar: AST.Argument.DoubleQuoteWithVar): T
     fun visitGlob(glob: AST.Argument.Glob): T
     fun visitRecursiveGlob(recursiveGlob: AST.Argument.RecursiveGlob): T
+    fun visitCommandIdentifier(commandIdentifier: AST.CommandIdentifier): T
 
 }

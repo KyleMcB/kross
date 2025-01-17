@@ -21,8 +21,9 @@ class PrettyPrinter : ASTVisitor<String> {
     }
 
     override fun visitSimpleCommand(simple: AST.SimpleCommand): String {
+        val command: String = simple.name.accept(this)
         val args = simple.arguments.joinToString(" ") { it.accept(this) }
-        return "${simple.name.value} $args".trim()
+        return "$command $args".trim()
     }
 
     override fun visitWordArgument(arg: AST.Argument.WordArgument): String {
@@ -47,6 +48,10 @@ class PrettyPrinter : ASTVisitor<String> {
 
     override fun visitRecursiveGlob(recursiveGlob: AST.Argument.RecursiveGlob): String {
         return "${recursiveGlob.text}"
+    }
+
+    override fun visitCommandIdentifier(commandIdentifier: AST.CommandIdentifier): String {
+        return commandIdentifier.identifier
     }
 
     // Implement other argument visit methods as needed.

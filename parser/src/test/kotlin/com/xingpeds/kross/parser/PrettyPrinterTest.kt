@@ -11,11 +11,22 @@ class PrettyPrinterTest {
                 AST.Command.Pipeline(
                     listOf(
                         AST.SimpleCommand(
-                            AST.CommandName.Word("echo"),
-                            listOf(AST.Argument.VariableSubstitution("hello"))
+                            AST.CommandIdentifier(
+                                "echo",
+                                sourceLocation = 1..1
+                            ),
+                            listOf(
+                                AST.Argument.VariableSubstitution(
+                                    "hello",
+                                    sourceLocation = 1..1
+                                )
+                            )
                         ),
                         AST.SimpleCommand(
-                            AST.CommandName.Word("cat"),
+                            AST.CommandIdentifier(
+                                "cat",
+                                sourceLocation = 1..1
+                            ),
                         )
                     )
                 )

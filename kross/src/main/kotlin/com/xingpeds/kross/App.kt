@@ -616,7 +616,7 @@ private fun OffscreenRenderScope.printBufferWithInvert(bufferState: StateFlow<Ed
     val cursorIndex = bufferState.value.cursor
     val tokens = bufferState.value.tokens
     for ((index, c) in bufferSnapShot.toCharArray().withIndex()) {
-        val token = tokens.find { index in it.position }
+        val token = tokens.find { index in it.sourcePosition }
         val color: Int? = token?.type?.let { colorMap[it] }
         if (index == cursorIndex) {
             invert {
@@ -651,11 +651,11 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
 
     var index = 0
     while (index < content.length) {
-        val token = tokens.find { index in it.position }
+        val token = tokens.find { index in it.sourcePosition }
         if (token != null) {
             when (token) {
                 is Token.And -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -663,7 +663,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Dollar -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -673,7 +673,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 is Token.EOF -> Unit
 
                 is Token.LeftParen -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -681,7 +681,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.DoubleQuote -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -689,7 +689,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.SingleQuote -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -697,13 +697,13 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Word -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     text(text)
                     index += text.length
                 }
 
                 is Token.Or -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -711,7 +711,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Pipe -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     blue {
                         text(text)
                     }
@@ -719,7 +719,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.RightParen -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -727,7 +727,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Semicolon -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -735,7 +735,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.DoubleQuoteWithVar -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -743,7 +743,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Glob -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -751,7 +751,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.RecursiveGlob -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }

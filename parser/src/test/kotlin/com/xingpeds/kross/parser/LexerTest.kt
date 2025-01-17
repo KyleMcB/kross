@@ -10,8 +10,20 @@ class LexerTest {
         val program = "hello"
         val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
+        println(tokens)
         assertEquals(2, tokens.size, "should have one token")
         val expeced = Token.Word("hello", 0..4)
+        assertEquals(expeced, tokens.first(), "should be the expected token")
+    }
+
+    @Test
+    fun oneWordWithSpace() = runTest {
+        val program = "hello  "
+        val lexer = Lexer(program)
+        val tokens = lexer.tokens().toList()
+        println(tokens)
+        assertEquals(2, tokens.size, "should have one token")
+        val expeced = Token.Word("hello", 0..6)
         assertEquals(expeced, tokens.first(), "should be the expected token")
     }
 
@@ -23,7 +35,7 @@ class LexerTest {
         println(tokens)
         println(program.length)
         tokens.forEach { token ->
-            println(program.substring(token.position))
+            println(program.substring(token.sourcePosition))
         }
         assertEquals(3, tokens.size, "should have two tokens")
     }
@@ -52,6 +64,7 @@ class LexerTest {
         val program = "hello \$world"
         val lexer = Lexer(program)
         val tokens = lexer.tokens().toList()
+        println(tokens)
         assertIs<Token.Word>(tokens[0])
         assertIs<Token.Dollar>(tokens[1])
         assertIs<Token.Word>(tokens[2])
