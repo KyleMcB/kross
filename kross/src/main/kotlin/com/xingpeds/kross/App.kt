@@ -19,7 +19,6 @@ import com.xingpeds.kross.executableLua.LuaExecutable
 import com.xingpeds.kross.luaScripting.Lua
 import com.xingpeds.kross.luaScripting.LuaEngine
 import com.xingpeds.kross.luaScripting.executeFile
-import com.xingpeds.kross.luaScripting.key
 import com.xingpeds.kross.parser.*
 import com.xingpeds.kross.state.Builtin
 import com.xingpeds.kross.state.ShellState
@@ -184,11 +183,11 @@ fun main() = runBlocking {
         val userhome: String = System.getProperty("user.home")
         val cwd: String = ShellStateObject.currentDirectory.value.absolutePath.replace(userhome, "~")
         // todo hook up the lua prompt
-        var prompt = "$username $cwd> "
-        val promptfunc = LuaEngine.global.key("kross")?.key("handles")?.key("prompt")?.funcOrNull()
-        if (promptfunc != null) {
-            prompt = promptfunc.call().tojstring()
-        }
+//        var prompt = "$username $cwd> "
+//        val promptfunc = LuaEngine.getLuaGlobal().key("kross")?.key("handles")?.key("prompt")?.funcOrNull()
+//        if (promptfunc != null) {
+//            prompt = promptfunc.call().tojstring()
+//        }
         val heldOutput = heldOverOuput.value
         val startingBuffer = EditState(heldOutput, heldOutput.length, heldOutput.toTokens())
         bufferState.emit(startingBuffer)

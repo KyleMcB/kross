@@ -71,7 +71,7 @@ class Manual {
 
     @Test
     fun hi() {
-        val globals = LuaEngine.global
+        val globals = LuaEngine.getLuaGlobal()
 
         fun luaprintln(str: String) {
             println("LUA_PRINTLN: $str")

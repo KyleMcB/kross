@@ -26,7 +26,7 @@ class LuaExecutableTest {
     fun manualTest() = runTest {
         val subject = LuaExecutable()
         val luaEngine = LuaEngine
-        val luaFunc = luaEngine.global.load(helloWorldProgram)
+        val luaFunc = luaEngine.getLuaGlobal().load(helloWorldProgram)
         luaEngine.registerFunction("hi".toLua(), luaFunc)
         subject("hi", emptyList(), pipes = Pipes(), env = emptyMap(), cwd = cwd)()
     }
@@ -37,7 +37,7 @@ class LuaExecutableTest {
         val subject = LuaExecutable()
         val luaEngine = LuaEngine
         val helloWorldProgram = "print('Hello, World!')" // Lua program as a string
-        val luaFunc = luaEngine.global.load(helloWorldProgram)
+        val luaFunc = luaEngine.getLuaGlobal().load(helloWorldProgram)
         luaEngine.registerFunction("hi".toLua(), luaFunc)
         val pipe = Chan()
         val output = StringBuilder()
@@ -66,7 +66,7 @@ print(input) -- After io.read""".trimIndent()
         val input = "hello there"
         val subject = LuaExecutable()
         val luaEngine = LuaEngine
-        val luaFunc = luaEngine.global.load(catProgram)
+        val luaFunc = luaEngine.getLuaGlobal().load(catProgram)
         luaEngine.registerFunction("cat".toLua(), luaFunc)
         val pipes = Pipes(
             programOutput = Chan(),

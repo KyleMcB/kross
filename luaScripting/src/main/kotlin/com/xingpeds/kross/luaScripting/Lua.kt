@@ -40,7 +40,7 @@ suspend fun Lua.executeFile(
     this.executeLua(codeAsText, input, output, error)
 }
 
-fun String.toLua(): LuaValue = LuaValue.valueOf(this)
+fun String.toLua(): LuaString = LuaValue.valueOf(this)
 
 fun adapter(builtin: BuiltinFun): LuaFunction = object : VarArgFunction() {
     override fun invoke(args: Varargs): Varargs = runBlocking {
@@ -100,7 +100,17 @@ object LuaEngine : Lua {
         this["userFuncs"] = userTable
         this["builtin"] = builtinTable
     }          // Create the `kross` table
-    val global = Globals().apply {
+
+    init {
+
+        val initGlobal = getLuaGlobal()
+    }
+
+    fun getLuaGlobal(): Globals {
+        return KrossLuaGlobal(krossTable)
+    }
+
+    private val global = KrossLuaGlobal(krossTable).apply {
         load(BaseLib())
         load(PackageLib())
         load(Bit32Lib())
@@ -109,12 +119,10 @@ object LuaEngine : Lua {
         load(CoroutineLib())
         load(JseIoLib())
         load(MathLib())
-        load(OsLib())
+//        load(OsLib())
 
-        LoadState.install(this)
-        LuaC.install(this)
-        this["kross"] = krossTable                   // Add the `kross` table to Globals
     }
+
 
     init {
         CoroutineScope(Dispatchers.Default).launch {
@@ -194,6 +202,11 @@ fun inputAdapter(input: InputStream): LuaBinInput = object : LuaBinInput() {
 }
 
 class KrossLuaGlobal(val globalsTable: LuaTable) : Globals() {
+    init {
+
+        LoadState.install(this)
+        LuaC.install(this)
+    }
 
     override fun checkglobals(): Globals {
         return this

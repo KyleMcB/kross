@@ -20,7 +20,7 @@ class LuaExecutable : Executable {
         env: Map<String, String>,
         cwd: File
     ): ExecutableResult {
-        val lua = com.xingpeds.kross.luaScripting.LuaEngine.global
+        val lua = com.xingpeds.kross.luaScripting.LuaEngine.getLuaGlobal()
         val originalOutput = lua.STDOUT
         val originalInput = lua.STDIN
         val originalErr = lua.STDERR
@@ -53,6 +53,7 @@ class LuaExecutable : Executable {
 
             // Coerce Java File to Lua userdata
             val luaCwd = LuaString.valueOf(cwd.absolutePath)
+
 
             // Pack the `luaArgs`, `luaEnv`, and `luaCwd` into a single Lua table
             val luaInputTable = LuaValue.tableOf(
