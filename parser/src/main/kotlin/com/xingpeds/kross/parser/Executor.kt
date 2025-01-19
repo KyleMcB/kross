@@ -117,7 +117,7 @@ class Executor(
     }
 
     private suspend fun exeSimpleCommand(command: AST.SimpleCommand, pipes: Pipes = this.pipes): Int {
-        val commandName = command.name.value
+        val commandName = command.name.identifier
         val executable = makeExecutable(commandName)
         val resolvedArguments = command.arguments.flatMap<AST.Argument, String> { arg ->
             when (arg) {

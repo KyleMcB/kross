@@ -18,7 +18,10 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("hello"),
+                            name = AST.CommandIdentifier(
+                                "hello",
+                                sourceLocation = 0..5
+                            ),
                             arguments = listOf()
                         )
                     )
@@ -39,9 +42,15 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("hello"),
+                            name = AST.CommandIdentifier(
+                                "hello",
+                                sourceLocation = 0..5
+                            ),
                             arguments = listOf(
-                                AST.Argument.WordArgument("world")
+                                AST.Argument.WordArgument(
+                                    "world",
+                                    sourceLocation = 0..5
+                                )
                             )
                         )
                     )
@@ -61,10 +70,19 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("hello"),
+                            name = AST.CommandIdentifier(
+                                "hello",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf(
-                                AST.Argument.WordArgument("world"),
-                                AST.Argument.WordArgument("2")
+                                AST.Argument.WordArgument(
+                                    "world",
+                                    sourceLocation = 1..1
+                                ),
+                                AST.Argument.WordArgument(
+                                    "2",
+                                    sourceLocation = 1..1
+                                )
                             )
                         )
                     )
@@ -94,9 +112,15 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
+                            name = AST.CommandIdentifier(
+                                "echo",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf(
-                                AST.Argument.WordArgument("hello")
+                                AST.Argument.WordArgument(
+                                    "hello",
+                                    sourceLocation = 1..1
+                                )
                             )
                         )
                     )
@@ -104,9 +128,15 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
+                            name = AST.CommandIdentifier(
+                                "echo",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf(
-                                AST.Argument.WordArgument("world")
+                                AST.Argument.WordArgument(
+                                    "world",
+                                    sourceLocation = 1..1
+                                )
                             )
                         )
                     )
@@ -130,7 +160,10 @@ class ParserTest {
                     left = AST.Command.Pipeline(
                         commands = listOf(
                             AST.SimpleCommand(
-                                name = AST.CommandName.Word("command1"),
+                                name = AST.CommandIdentifier(
+                                    "command1",
+                                    sourceLocation = 1..1
+                                ),
                                 arguments = listOf()
                             )
                         )
@@ -138,7 +171,10 @@ class ParserTest {
                     right = AST.Command.Pipeline(
                         commands = listOf(
                             AST.SimpleCommand(
-                                name = AST.CommandName.Word("command2"),
+                                name = AST.CommandIdentifier(
+                                    "command2",
+                                    sourceLocation = 1..1
+                                ),
                                 arguments = listOf()
                             )
                         )
@@ -161,7 +197,10 @@ class ParserTest {
                     left = AST.Command.Pipeline(
                         commands = listOf(
                             AST.SimpleCommand(
-                                name = AST.CommandName.Word("command1"),
+                                name = AST.CommandIdentifier(
+                                    "command1",
+                                    sourceLocation = 1..1
+                                ),
                                 arguments = listOf()
                             )
                         )
@@ -169,7 +208,10 @@ class ParserTest {
                     right = AST.Command.Pipeline(
                         commands = listOf(
                             AST.SimpleCommand(
-                                name = AST.CommandName.Word("command2"),
+                                name = AST.CommandIdentifier(
+                                    "command2",
+                                    sourceLocation = 1..1
+                                ),
                                 arguments = listOf()
                             )
                         )
@@ -199,9 +241,15 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
+                            name = AST.CommandIdentifier(
+                                "echo",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf(
-                                AST.Argument.WordArgument("hello world")
+                                AST.Argument.WordArgument(
+                                    "hello world",
+                                    sourceLocation = 1..1
+                                )
                             )
                         )
                     )
@@ -232,17 +280,29 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("ls"),
+                            name = AST.CommandIdentifier(
+                                "ls",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf()
                         ),
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("grep"),
+                            name = AST.CommandIdentifier(
+                                "grep",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf(
-                                AST.Argument.WordArgument("file")
+                                AST.Argument.WordArgument(
+                                    "file",
+                                    sourceLocation = 1..1
+                                )
                             )
                         ),
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("cowsay"),
+                            name = AST.CommandIdentifier(
+                                "cowsay",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf()
                         )
                     )
@@ -272,13 +332,22 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("ls"),
+                            name = AST.CommandIdentifier(
+                                "ls",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf()
                         ),
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("grep"),
+                            name = AST.CommandIdentifier(
+                                "grep",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf(
-                                AST.Argument.WordArgument("file")
+                                AST.Argument.WordArgument(
+                                    "file",
+                                    sourceLocation = 1..1
+                                )
                             )
                         )
                     )
@@ -298,7 +367,7 @@ class ParserTest {
 //            AST.Sequence(
 //                listOf(
 //                    AST.SimpleCommand(
-//                        AST.CommandName.Word("echo"),
+//                        AST.CommandIdentifier("echo"),
 //                        arguments = listOf(AST.WordArgument("simple"))
 //                    )
 //                )
@@ -319,9 +388,15 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
+                            name = AST.CommandIdentifier(
+                                "echo",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf(
-                                AST.Argument.VariableSubstitution(variableName = "MY_VAR")
+                                AST.Argument.VariableSubstitution(
+                                    variableName = "MY_VAR",
+                                    sourceLocation = 1..1
+                                )
                             )
                         )
                     )
@@ -349,7 +424,10 @@ class ParserTest {
                 AST.Command.Pipeline(
                     commands = listOf(
                         AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
+                            name = AST.CommandIdentifier(
+                                "echo",
+                                sourceLocation = 1..1
+                            ),
                             arguments = listOf(
                                 AST.Argument.CommandSubstitution(
                                     commandLine = AST.Program(
@@ -357,13 +435,17 @@ class ParserTest {
                                             AST.Command.Pipeline(
                                                 commands = listOf(
                                                     AST.SimpleCommand(
-                                                        name = AST.CommandName.Word("date"),
+                                                        name = AST.CommandIdentifier(
+                                                            "date",
+                                                            sourceLocation = 1..1
+                                                        ),
                                                         arguments = listOf()
                                                     )
                                                 )
                                             )
                                         )
-                                    )
+                                    ),
+                                    sourceLocation = 1..1
                                 )
                             )
                         )

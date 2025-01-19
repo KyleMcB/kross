@@ -35,8 +35,10 @@ class Lexer(
 
             if (match != null) {
                 val (tokenText, tokenType) = match
-                val token = createTokenFrom(tokenText, tokenType, cursor)
-                cursor += tokenText.length
+                val ws = whiteSpaceMatcher.find(string.substring(tokenText.length))?.value?.length
+
+                val token = createTokenFrom(tokenText, tokenType, cursor, ws ?: 0)
+                cursor += tokenText.length + (ws ?: 0)
                 emit(token)
             } else {
                 val snippet = string.take(10)
@@ -46,22 +48,30 @@ class Lexer(
         emit(Token.EOF(cursor - 1..cursor - 1))
     }
 
-    private fun createTokenFrom(text: String, tokenType: TokenType, atPosition: Int): Token {
+    private fun createTokenFrom(text: String, tokenType: TokenType, atPosition: Int, trailingWhitespace: Int): Token {
         return when (tokenType) {
-            TokenType.Word -> Token.Word(text, (atPosition..text.length + atPosition - 1))
-            TokenType.Semicolon -> Token.Semicolon(atPosition..atPosition)
-            TokenType.Pipe -> Token.Pipe(atPosition..atPosition)
-            TokenType.And -> Token.And(atPosition..atPosition + 1)
-            TokenType.Or -> Token.Or(atPosition..atPosition + 1)
-            TokenType.LeftParen -> Token.LeftParen(atPosition..atPosition)
-            TokenType.RightParen -> Token.RightParen(atPosition..atPosition)
-            TokenType.Dollar -> Token.Dollar(atPosition..atPosition)
-            TokenType.EOF -> Token.EOF(atPosition..atPosition)
-            TokenType.SingleQuotedString -> Token.SingleQuote(text, (atPosition..text.length + atPosition - 1))
-            TokenType.DoubleQuotedString -> Token.DoubleQuote(text, (atPosition..text.length + atPosition - 1))
+            TokenType.Word -> Token.Word(text, (atPosition..text.length + atPosition - 1 + trailingWhitespace))
+            TokenType.Semicolon -> Token.Semicolon(atPosition..atPosition + trailingWhitespace)
+            TokenType.Pipe -> Token.Pipe(atPosition..atPosition + trailingWhitespace)
+            TokenType.And -> Token.And(atPosition..atPosition + 1 + trailingWhitespace)
+            TokenType.Or -> Token.Or(atPosition..atPosition + 1 + trailingWhitespace)
+            TokenType.LeftParen -> Token.LeftParen(atPosition..atPosition + trailingWhitespace)
+            TokenType.RightParen -> Token.RightParen(atPosition..atPosition + trailingWhitespace)
+            TokenType.Dollar -> Token.Dollar(atPosition..atPosition + trailingWhitespace)
+            TokenType.EOF -> Token.EOF(atPosition..atPosition + trailingWhitespace)
+            TokenType.SingleQuotedString -> Token.SingleQuote(
+                text,
+                (atPosition..text.length + atPosition - 1 + trailingWhitespace)
+            )
+
+            TokenType.DoubleQuotedString -> Token.DoubleQuote(
+                text,
+                (atPosition..text.length + atPosition - 1 + trailingWhitespace)
+            )
+
             TokenType.DoubleQuotedStringWithEnv -> Token.DoubleQuoteWithVar(
                 text,
-                (atPosition..text.length + atPosition - 1)
+                (atPosition..text.length + atPosition - 1 + trailingWhitespace)
             )
 
             TokenType.WordWithGlob -> Token.Glob(text, (atPosition..text.length + atPosition - 1))

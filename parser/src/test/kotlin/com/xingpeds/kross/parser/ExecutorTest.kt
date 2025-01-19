@@ -1,6 +1,7 @@
 package com.xingpeds.kross.parser
 
 import com.xingpeds.kross.entities.*
+import com.xingpeds.kross.entities.AST.*
 import com.xingpeds.kross.executable.Executable
 import com.xingpeds.kross.executable.JavaOSProcess
 import com.xingpeds.kross.state.ShellState
@@ -60,15 +61,18 @@ class ExecutorTest {
 
     }
 
+    fun WordArgument(arg1: String) = Argument.WordArgument(arg1, 1..1)
+    fun CommandIdentifier(arg1: String) = CommandIdentifier(arg1, 1..1)
+
     @Test
     fun simpleEcho() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             commands = listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     listOf(
-                        AST.SimpleCommand(
-                            AST.CommandName.Word("echo"),
-                            listOf(AST.Argument.WordArgument("hello world"))
+                        SimpleCommand(
+                            CommandIdentifier("echo"),
+                            listOf(WordArgument("hello world"))
                         )
                     )
                 )
@@ -97,12 +101,12 @@ class ExecutorTest {
 
     @Test
     fun simpleCat() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             commands = listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     listOf(
-                        AST.SimpleCommand(
-                            AST.CommandName.Word("cat"),
+                        SimpleCommand(
+                            CommandIdentifier("cat"),
                         )
                     )
                 )
@@ -136,13 +140,18 @@ class ExecutorTest {
         val shellStateObject = ShellStateObject
         shellStateObject.setVariable("hello", "world")
         println(shellStateObject.environment.value)
-        val ast = AST.Program(
+        val ast = Program(
             listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     listOf(
-                        AST.SimpleCommand(
-                            AST.CommandName.Word("echo"),
-                            listOf(AST.Argument.VariableSubstitution("hello"))
+                        SimpleCommand(
+                            CommandIdentifier("echo"),
+                            listOf(
+                                Argument.VariableSubstitution(
+                                    "hello",
+                                    sourceLocation = 1..1
+                                )
+                            )
                         )
                     )
                 )
@@ -165,13 +174,23 @@ class ExecutorTest {
 
     @Test
     fun seq1() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             listOf(
-                AST.Command.Pipeline(
-                    listOf(AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.Argument.WordArgument("hello")))),
+                Command.Pipeline(
+                    listOf(
+                        SimpleCommand(
+                            CommandIdentifier("echo"),
+                            listOf(WordArgument("hello"))
+                        )
+                    ),
                 ),
-                AST.Command.Pipeline(
-                    listOf(AST.SimpleCommand(AST.CommandName.Word("echo"), listOf(AST.Argument.WordArgument("world")))),
+                Command.Pipeline(
+                    listOf(
+                        SimpleCommand(
+                            CommandIdentifier("echo"),
+                            listOf(WordArgument("world"))
+                        )
+                    ),
                 ),
 
                 )
@@ -196,17 +215,17 @@ class ExecutorTest {
 
     @Test
     fun and2() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             listOf(
 
-                AST.Command.And(
-                    left = AST.Command.Pipeline(
-                        listOf(AST.SimpleCommand(AST.CommandName.Word("true")))
+                Command.And(
+                    left = Command.Pipeline(
+                        listOf(SimpleCommand(CommandIdentifier("true")))
                     ),
-                    right = AST.Command.Pipeline(
+                    right = Command.Pipeline(
                         listOf(
-                            AST.SimpleCommand(
-                                AST.CommandName.Word("false"),
+                            SimpleCommand(
+                                CommandIdentifier("false"),
                             )
                         )
                     )
@@ -221,18 +240,18 @@ class ExecutorTest {
 
     @Test
     fun and1() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             listOf(
 
-                AST.Command.And(
-                    left = AST.Command.Pipeline(
-                        listOf(AST.SimpleCommand(AST.CommandName.Word("true")))
+                Command.And(
+                    left = Command.Pipeline(
+                        listOf(SimpleCommand(CommandIdentifier("true")))
                     ),
-                    right = AST.Command.Pipeline(
+                    right = Command.Pipeline(
                         listOf(
-                            AST.SimpleCommand(
-                                AST.CommandName.Word("echo"),
-                                listOf(AST.Argument.WordArgument("hello"))
+                            SimpleCommand(
+                                CommandIdentifier("echo"),
+                                listOf(WordArgument("hello"))
                             )
                         )
                     )
@@ -247,15 +266,15 @@ class ExecutorTest {
 
     @Test
     fun and3() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             listOf(
-                AST.Command.And(
-                    left = AST.Command.Pipeline(
-                        listOf(AST.SimpleCommand(AST.CommandName.Word("false")))
+                Command.And(
+                    left = Command.Pipeline(
+                        listOf(SimpleCommand(CommandIdentifier("false")))
                     ),
-                    right = AST.Command.Pipeline(
+                    right = Command.Pipeline(
                         listOf(
-                            AST.SimpleCommand(AST.CommandName.Word("true")),
+                            SimpleCommand(CommandIdentifier("true")),
                         )
                     )
                 )
@@ -271,14 +290,14 @@ class ExecutorTest {
     @Test
     fun or1() = runTest(timeout = 10.seconds) {
 
-        val ast = AST.Program(
+        val ast = Program(
             listOf(
-                AST.Command.Or(
-                    left = AST.Command.Pipeline(
-                        listOf(AST.SimpleCommand(AST.CommandName.Word("true")))
+                Command.Or(
+                    left = Command.Pipeline(
+                        listOf(SimpleCommand(CommandIdentifier("true")))
                     ),
-                    right = AST.Command.Pipeline(
-                        listOf(AST.SimpleCommand(AST.CommandName.Word("false")))
+                    right = Command.Pipeline(
+                        listOf(SimpleCommand(CommandIdentifier("false")))
                     )
                 )
             )
@@ -292,15 +311,15 @@ class ExecutorTest {
     @Test
     fun or2() = runTest(timeout = 10.seconds) {
 
-        val ast = AST.Program(
+        val ast = Program(
 
             listOf(
-                AST.Command.Or(
-                    left = AST.Command.Pipeline(
-                        listOf(AST.SimpleCommand(AST.CommandName.Word("false")))
+                Command.Or(
+                    left = Command.Pipeline(
+                        listOf(SimpleCommand(CommandIdentifier("false")))
                     ),
-                    right = AST.Command.Pipeline(
-                        listOf(AST.SimpleCommand(AST.CommandName.Word("true")))
+                    right = Command.Pipeline(
+                        listOf(SimpleCommand(CommandIdentifier("true")))
                     )
                 )
             )
@@ -315,19 +334,19 @@ class ExecutorTest {
 
     @Test
     fun pipe2() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             commands = listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     commands = listOf(
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
-                            arguments = listOf(AST.Argument.WordArgument("hello there"))
+                        SimpleCommand(
+                            name = CommandIdentifier("echo"),
+                            arguments = listOf(WordArgument("hello there"))
                         ),
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("cat"),
+                        SimpleCommand(
+                            name = CommandIdentifier("cat"),
                         ),
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("cat")
+                        SimpleCommand(
+                            name = CommandIdentifier("cat")
                         )
                     )
                 )
@@ -354,16 +373,16 @@ class ExecutorTest {
 
     @Test
     fun pipe1() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             commands = listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     commands = listOf(
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
-                            arguments = listOf(AST.Argument.WordArgument("hello there"))
+                        SimpleCommand(
+                            name = CommandIdentifier("echo"),
+                            arguments = listOf(WordArgument("hello there"))
                         ),
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("cat")
+                        SimpleCommand(
+                            name = CommandIdentifier("cat")
                         )
                     )
                 )
@@ -390,17 +409,17 @@ class ExecutorTest {
     @Ignore //need to mock out env
     @Test
     fun grepChan() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             commands = listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     commands = listOf(
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("ls"),
+                        SimpleCommand(
+                            name = CommandIdentifier("ls"),
                         ),
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("grep"),
+                        SimpleCommand(
+                            name = CommandIdentifier("grep"),
                             arguments = listOf(
-                                AST.Argument.WordArgument("build"),
+                                WordArgument("build"),
                             )
                         )
                     )
@@ -427,25 +446,26 @@ class ExecutorTest {
 
     @Test
     fun commandSub() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             commands = listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     commands = listOf(
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
+                        SimpleCommand(
+                            name = CommandIdentifier("echo"),
                             arguments = listOf(
-                                AST.Argument.CommandSubstitution(
-                                    AST.Program(
+                                Argument.CommandSubstitution(
+                                    Program(
                                         commands = listOf(
-                                            AST.Command.Pipeline(
+                                            Command.Pipeline(
                                                 commands = listOf(
-                                                    AST.SimpleCommand(
-                                                        name = AST.CommandName.Word("date")
+                                                    SimpleCommand(
+                                                        name = CommandIdentifier("date")
                                                     )
                                                 )
                                             )
                                         )
-                                    )
+                                    ),
+                                    sourceLocation = 1..1
                                 )
                             )
                         )
@@ -469,14 +489,17 @@ class ExecutorTest {
 
     @Test
     fun varInQuotesWrapped() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             commands = listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     commands = listOf(
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
+                        SimpleCommand(
+                            name = CommandIdentifier("echo"),
                             arguments = listOf(
-                                AST.Argument.DoubleQuoteWithVar("hello \${world}")
+                                Argument.DoubleQuoteWithVar(
+                                    "hello \${world}",
+                                    sourceLocation = 1..1
+                                )
                             )
                         )
                     )
@@ -504,14 +527,17 @@ class ExecutorTest {
 
     @Test
     fun varInQuotes() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             commands = listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     commands = listOf(
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
+                        SimpleCommand(
+                            name = CommandIdentifier("echo"),
                             arguments = listOf(
-                                AST.Argument.DoubleQuoteWithVar("hello \$world")
+                                Argument.DoubleQuoteWithVar(
+                                    "hello \$world",
+                                    sourceLocation = 1..1
+                                )
                             )
                         )
                     )
@@ -539,14 +565,17 @@ class ExecutorTest {
 
     @Test
     fun globTest() = runTest(timeout = 10.seconds) {
-        val ast = AST.Program(
+        val ast = Program(
             commands = listOf(
-                AST.Command.Pipeline(
+                Command.Pipeline(
                     commands = listOf(
-                        AST.SimpleCommand(
-                            name = AST.CommandName.Word("echo"),
+                        SimpleCommand(
+                            name = CommandIdentifier("echo"),
                             arguments = listOf(
-                                AST.Argument.Glob(text = "*.txt")
+                                Argument.Glob(
+                                    text = "*.txt",
+                                    sourceLocation = 1..1
+                                )
                             )
                         )
                     )
