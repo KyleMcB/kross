@@ -436,7 +436,13 @@ fun main() = runBlocking {
                 val time = measureTimeMillis {
                     processInput(bufferState.value.content)
                 }
-                state.addHistory(bufferState.value.content)
+                try {
+                    val ast = Parser().parse(bufferState.value.tokens.asFlow())
+                    val formatted = PrettyPrinter().visitProgram(ast)
+                    state.addHistory(formatted)
+                } catch (e: Exception) {
+                    state.addHistory(bufferState.value.content)
+                }
                 val readableTime =
                     time.toDuration(DurationUnit.MILLISECONDS).toComponents { hours, minutes, seconds, nanoseconds ->
                         buildString {
