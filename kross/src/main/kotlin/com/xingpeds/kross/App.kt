@@ -704,6 +704,11 @@ private fun OffscreenRenderScope.printBufferWithInvert(
             }
         }
     }
+    if (input.length == cursor) {
+        invert {
+            text(" ")
+        }
+    }
 }
 
 private fun OffscreenRenderScope.printBufferWithInvert(bufferState: StateFlow<EditState>) {
