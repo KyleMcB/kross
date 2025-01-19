@@ -1,0 +1,32 @@
+name: Build and Publish with Homebrew Formula Update
+
+on:
+  release:
+    types: [ released ]
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Update Homebrew formula
+        uses: dawidd6/action-homebrew-bump-formula@v4
+        with:
+          # Required, custom GitHub access token with the 'public_repo' and 'workflow' scopes
+          token: ${{ secrets.TOKEN }}
+          # Optional, will commit with this user name
+          user_name: Kyle McBurnett
+          # Optional, will commit with this user email
+          user_email: kylemcburnett@xingpeds.com
+
+          # Optional, use the origin repository instead of forking
+          no_fork: false
+          # Optional, defaults to homebrew/core
+          tap: KyleMcB/kross
+          # Formula name, required
+          formula: kross
+          # Optional, if don't want to check for already open PRs
+          force: false

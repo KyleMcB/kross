@@ -131,6 +131,8 @@ suspend fun String.toTokens(): List<Token> {
     }
 }
 
+val commandNames = MutableStateFlow<Set<String>>(listExecutablesOnPath().toSet())
+
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
@@ -165,6 +167,16 @@ fun main() = runBlocking {
             exception.error("uncaught error")
         }
         val collectionScope = CoroutineScope(Dispatchers.Default + handler)
+        val liveParseScope = CoroutineScope(Dispatchers.Default + handler)
+        val astState = bufferState.map { (content, cursor, tokens) ->
+            try {
+                val parser = Parser()
+                val ast = parser.parse(tokens.asFlow())
+                ast
+            } catch (e: Throwable) {
+                null
+            }
+        }.stateIn(liveParseScope, SharingStarted.Eagerly, null)
         collectionScope.gitBranch(gitBranch)
         val processState = MutableStateFlow(ProcessStep.UserCommand)
         var historyCursor: Int? = null
@@ -192,6 +204,15 @@ fun main() = runBlocking {
                 }
             }
         }
+        val bufferStateWithHighlights = combine(bufferState, astState.filterNotNull()) { bufferState, ast ->
+            val tokens = bufferState.tokens
+            val operators = tokens.toHighlights()
+            val astHighlists = Highlighter { name ->
+                isValidCommand(name, commandNames.value)
+            }.visitProgram(ast)
+            val highlights = operators + astHighlists
+            bufferState to highlights
+        }.stateIn(collectionScope, SharingStarted.Eagerly, startingBuffer to emptyList())
 
         session(terminal = terminal) {
 
@@ -243,18 +264,16 @@ fun main() = runBlocking {
                         justified(Justification.LEFT, minWidth = terminal.width - 2) {
 //                            text(promptState.value)
                             val promptfunc = promptState.value
+                            val bufferAndHighlights = bufferStateWithHighlights.value
+                            val input = bufferAndHighlights.first.content
+                            val cursor = bufferAndHighlights.first.cursor
                             promptfunc()
-                            printBufferWithInvert(bufferState)
+                            printBufferWithInvert(input, cursor, bufferAndHighlights.second, colorMap2)
                         }
                     }
                 }
             }.runUntilSignal {
 
-                collectionScope.launch {
-                    bufferState.collect { (content, cursor, tokens) ->
-                        tokens.debug("tokens")
-                    }
-                }
                 val channel = Channel<Int>(Channel.UNLIMITED)
                 val keyFlow = toKeyEventFlow(channel).shareIn(collectionScope, SharingStarted.Eagerly)
                 collectionScope.launch {
@@ -390,6 +409,11 @@ fun main() = runBlocking {
                 }
 
                 collectionScope.launch {
+                    bufferStateWithHighlights.collect {
+                        rerender()
+                    }
+                }
+                collectionScope.launch {
                     bufferState.collect {
                         rerender()
                     }
@@ -399,6 +423,7 @@ fun main() = runBlocking {
                         rerender()
                     }
                 }
+
             }
         }
         terminal.close()
@@ -411,7 +436,13 @@ fun main() = runBlocking {
                 val time = measureTimeMillis {
                     processInput(bufferState.value.content)
                 }
-                state.addHistory(bufferState.value.content)
+                try {
+                    val ast = Parser().parse(bufferState.value.tokens.asFlow())
+                    val formatted = PrettyPrinter().visitProgram(ast)
+                    state.addHistory(formatted)
+                } catch (e: Exception) {
+                    state.addHistory(bufferState.value.content)
+                }
                 val readableTime =
                     time.toDuration(DurationUnit.MILLISECONDS).toComponents { hours, minutes, seconds, nanoseconds ->
                         buildString {
@@ -443,7 +474,7 @@ fun main() = runBlocking {
                         val executor = JavaOSProcess()
                         executor.invoke(
                             "fzf",
-                            args = listOf("--query=${bufferState.value.content}", "-1"),
+                            args = listOf("--height=~50%", "--query=${bufferState.value.content}", "-1"),
                             pipes = pipes,
                             env = state.environment.value,
                             cwd = state.currentDirectory.value
@@ -475,7 +506,7 @@ fun main() = runBlocking {
                     Channel<Int>(Channel.UNLIMITED)
                 } else null
                 val pipes = Pipes(programInput = inputPipe, programOutput = outputPipe)
-                var fzf_exit_code = -99
+                var fzfExitCode = -99
                 fzfScope.launch {
                     launch {
                         outputPipe.connectTo(output.asOutputStream())
@@ -487,9 +518,9 @@ fun main() = runBlocking {
                         val executor = JavaOSProcess()
                         val lastWord = words.lastOrNull()
                         val args = if (lastWord != null) {
-                            listOf("--query=$lastWord", "-1")
+                            listOf("--height=~50", "--query=$lastWord", "-1")
                         } else emptyList()
-                        fzf_exit_code = executor.invoke(
+                        fzfExitCode = executor.invoke(
                             "fzf",
                             args = args,
                             pipes = pipes,
@@ -511,7 +542,7 @@ fun main() = runBlocking {
                             words.dropLast(1).joinToString(separator = " ") + " " + outputstring
                         )
                     }
-                } else if (fzf_exit_code != 0) {
+                } else if (fzfExitCode != 0) {
                     heldOverOuput.emit(bufferState.value.content)
                 }
             }
@@ -597,6 +628,18 @@ fun main() = runBlocking {
     scope.cancel()
 }
 
+val colorMap2: ColorMap = TextStyle.entries.associate { textStyle ->
+    textStyle to when (textStyle) {
+        TextStyle.Argument -> 0xD3D3D3 // Offwhite
+        TextStyle.Operator -> 0xFFA500 // Orange (unique color)
+        TextStyle.Variable -> 0x8A2BE2 // BlueViolet (unique color)
+        TextStyle.ResolvableArgument -> 0x8FBC8F // DarkSeaGreen (unique color)
+        TextStyle.RecursiveArgument -> 0x00CED1 // DarkTurquoise (unique color)
+        TextStyle.Command.Invalid -> 0xFF0000 // Red
+        TextStyle.Command.PotentialCommand -> 0x0000FF // Blue
+        TextStyle.Command.Valid -> 0x008000 // Green
+    }
+}
 val colorMap: Map<TokenType, Int?> = TokenType.entries.associate {
     when (it) {
         TokenType.Word -> it to null
@@ -609,9 +652,68 @@ val colorMap: Map<TokenType, Int?> = TokenType.entries.associate {
         TokenType.SingleQuotedString -> it to 0xFFFF00
         TokenType.DoubleQuotedString -> it to 0xFFFF00
         TokenType.Dollar -> it to 0xFFFF00
-        TokenType.LeftBracket -> it to 0xFFFF00
-        TokenType.RightBracket -> it to 0xFFFF00
         TokenType.EOF -> it to null
+        TokenType.WordWithGlob -> it to 0xFFFF00
+        TokenType.DoubleQuotedStringWithEnv -> it to 0xFFFF00
+        TokenType.WordWithDoubleGlob -> it to 0xFFFF00
+    }
+}
+
+fun Collection<Token>.toHighlights(): Collection<Highlight> {
+    return this.mapNotNull { token ->
+        when (token) {
+            is Token.And -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.Dollar -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.DoubleQuoteWithVar -> null
+            is Token.EOF -> null
+            is Token.Glob -> null
+            is Token.LeftParen -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.DoubleQuote -> null
+            is Token.SingleQuote -> null
+            is Token.Word -> null
+            is Token.Or -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.Pipe -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.RecursiveGlob -> null
+            is Token.RightParen -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.Semicolon -> Highlight(token.sourcePosition, TextStyle.Operator)
+        }
+    }
+}
+typealias ColorMap = Map<TextStyle, Int>
+
+private fun OffscreenRenderScope.printBufferWithInvert(
+    input: String,
+    cursor: Int,
+    highlights: Collection<Highlight>,
+    colorMap: ColorMap
+) {
+    for ((index, c) in input.toCharArray().withIndex()) {
+        val highlight = highlights.find { index in it.range }
+        val color = highlight?.style?.let { colorMap[it] }
+        if (index == cursor) {
+            invert {
+                if (color != null) {
+                    rgb(color) {
+                        text(c)
+                    }
+                } else {
+                    text(c)
+                }
+            }
+        } else {
+            if (color != null) {
+                rgb(color) {
+                    text(c)
+                }
+            } else {
+                text(c)
+            }
+        }
+    }
+    if (input.length == cursor) {
+        invert {
+            text(" ")
+        }
     }
 }
 
@@ -620,7 +722,7 @@ private fun OffscreenRenderScope.printBufferWithInvert(bufferState: StateFlow<Ed
     val cursorIndex = bufferState.value.cursor
     val tokens = bufferState.value.tokens
     for ((index, c) in bufferSnapShot.toCharArray().withIndex()) {
-        val token = tokens.find { index in it.position }
+        val token = tokens.find { index in it.sourcePosition }
         val color: Int? = token?.type?.let { colorMap[it] }
         if (index == cursorIndex) {
             invert {
@@ -650,16 +752,26 @@ private fun OffscreenRenderScope.printBufferWithInvert(bufferState: StateFlow<Ed
     }
 }
 
+private fun isValidCommand(name: String, commands: Set<String>): TextStyle.Command {
+    return if (commands.contains(name)) {
+        TextStyle.Command.Valid
+    } else if (commands.any { it.startsWith(name) }) {
+        TextStyle.Command.PotentialCommand
+    } else {
+        TextStyle.Command.Invalid
+    }
+}
+
 private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState>) {
     val (content, cursor, tokens) = bufferState.value
 
     var index = 0
     while (index < content.length) {
-        val token = tokens.find { index in it.position }
+        val token = tokens.find { index in it.sourcePosition }
         if (token != null) {
             when (token) {
                 is Token.And -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -667,7 +779,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Dollar -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -675,16 +787,9 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.EOF -> Unit
-                is Token.LeftBracket -> {
-                    val text = content.substring(token.position)
-                    green {
-                        text(text)
-                    }
-                    index += text.length
-                }
 
                 is Token.LeftParen -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -692,7 +797,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.DoubleQuote -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -700,7 +805,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.SingleQuote -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -708,13 +813,13 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Word -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     text(text)
                     index += text.length
                 }
 
                 is Token.Or -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -722,23 +827,15 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Pipe -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     blue {
                         text(text)
                     }
                     index += text.length
                 }
 
-                is Token.RightBracket -> {
-                    val text = content.substring(token.position)
-                    green {
-                        text(text)
-                    }
-                    index += text.length
-                }
-
                 is Token.RightParen -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -746,7 +843,31 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
                 }
 
                 is Token.Semicolon -> {
-                    val text = content.substring(token.position)
+                    val text = content.substring(token.sourcePosition)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.DoubleQuoteWithVar -> {
+                    val text = content.substring(token.sourcePosition)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.Glob -> {
+                    val text = content.substring(token.sourcePosition)
+                    green {
+                        text(text)
+                    }
+                    index += text.length
+                }
+
+                is Token.RecursiveGlob -> {
+                    val text = content.substring(token.sourcePosition)
                     green {
                         text(text)
                     }
@@ -769,7 +890,12 @@ suspend fun processInput(line: String) {
         val parser = Parser()
         val ast = parser.parse(lexer.tokens())
         val makeExecutable: suspend (name: String) -> Executable = { name ->
-            if (LuaEngine.userFuncExists(name)) {
+
+            // Check if 'name' is a valid executable file
+            val executableFile = File(state.currentDirectory.value, name)
+            if (executableFile.exists() && executableFile.canExecute() && executableFile.isFile) {
+                JavaOSProcess()
+            } else if (LuaEngine.userFuncExists(name)) {
                 LuaExecutable()
             } else if (Builtin.builtinFuns.containsKey(name)) {
                 BuiltInExecutable(Builtin.builtinFuns[name]!!)
@@ -790,7 +916,6 @@ suspend fun processInput(line: String) {
                         throw Exception("Program '$name' not found on PATH.")
                     }
                 }
-
             }
         }
         val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)

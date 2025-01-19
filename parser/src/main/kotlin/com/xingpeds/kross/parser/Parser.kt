@@ -14,13 +14,13 @@ pipeline       ::= simpleCommand { '|' simpleCommand }
 simpleCommand  ::= WORD { argument }
 argument       ::= WORD | substitution
 substitution   ::= variable_substitution | command_substitution
-variable_substitution ::= '$' '{'? WORD '}'?
+variable_substitution ::= '$' WORD
 command_substitution ::= '(' command_line ')'
 command_line   ::= input
 */
 class Parser {
-    var iterator: Iterator<Token> = emptyList<Token>().iterator()
-    var lookahead: Token = Token.EOF(0..0)
+    private var iterator: Iterator<Token> = emptyList<Token>().iterator()
+    private var lookahead: Token = Token.EOF(0..0)
     private fun peek() = lookahead
     private fun advance(): Token {
         val token = lookahead
@@ -40,7 +40,7 @@ class Parser {
                 throw SyntaxError("Unexpected end of input, expected ${tokens.joinToString(", ")}")
             }
         } else {
-            throw Exception("Unexpected token $token\nExpected one of ${tokens.joinToString(", ")}")
+            throw UnexpectedToken(tokens.joinToString(", ") { it.name }, token.type.name, token.sourcePosition.first)
         }
     }
 
@@ -93,7 +93,7 @@ class Parser {
     }
 
     private suspend fun parseSimpleCommand(): AST.SimpleCommand {
-        val name: AST.CommandName = parseCommandName()
+        val name: AST.CommandIdentifier = parseCommandName()
         val arguments = parseArgumentList()
 
         return AST.SimpleCommand(name = name, arguments = arguments)
@@ -101,45 +101,78 @@ class Parser {
 
     private suspend fun parseArgumentList(): List<AST.Argument> {
         val args = mutableListOf<AST.Argument>()
-        while (peek() is Token.Dollar || peek() is Token.LeftParen || peek() is Token.Word || peek() is Token.SingleQuote || peek() is Token.DoubleQuote) {
+        while (peek() is Token.RecursiveGlob || peek() is Token.DoubleQuoteWithVar || peek() is Token.Glob || peek() is Token.Dollar || peek() is Token.LeftParen || peek() is Token.Word || peek() is Token.SingleQuote || peek() is Token.DoubleQuote) {
             when (peek()) {
                 is Token.Dollar -> args.add(parseVariable())
                 is Token.Word -> args.add(parseWordArgument())
                 is Token.LeftParen -> args.add(parseCommandSubstitution())
                 is Token.SingleQuote -> args.add(parseSingleQuote())
                 is Token.DoubleQuote -> args.add(parseDoubleQuote())
+                is Token.DoubleQuoteWithVar -> args.add(parseDoubleQuoteWithVar())
+                is Token.Glob -> args.add(parseGlob())
+                is Token.RecursiveGlob -> args.add(parseRecursiveGlob())
                 else -> throw Exception("") // this line is unreachable because of the while loop condition
             }
         }
         return args
     }
 
+    private suspend fun parseRecursiveGlob(): AST.Argument.RecursiveGlob {
+        val token = eat(TokenType.WordWithDoubleGlob) as Token.RecursiveGlob
+        return AST.Argument.RecursiveGlob(
+            text = token.text,
+            sourceLocation = token.sourcePosition
+        )
+    }
+
+    private suspend fun parseGlob(): AST.Argument.Glob {
+        val token = eat(TokenType.WordWithGlob) as Token.Glob
+        return AST.Argument.Glob(
+            text = token.text,
+            sourceLocation = token.sourcePosition
+        )
+    }
+
+    private suspend fun parseDoubleQuoteWithVar(): AST.Argument.DoubleQuoteWithVar {
+        val token = eat(TokenType.DoubleQuotedStringWithEnv) as Token.DoubleQuoteWithVar
+        return AST.Argument.DoubleQuoteWithVar(
+            text = token.text,
+            sourceLocation = token.sourcePosition
+        )
+    }
+
     private fun parseDoubleQuote(): AST.Argument.WordArgument {
         val token = eat(TokenType.DoubleQuotedString) as Token.DoubleQuote
-        return AST.Argument.WordArgument(token.value)
+        return AST.Argument.WordArgument(
+            token.value,
+            sourceLocation = token.sourcePosition
+        )
     }
 
     private suspend fun parseSingleQuote(): AST.Argument.WordArgument {
         val token = eat(TokenType.SingleQuotedString) as Token.SingleQuote
-        return AST.Argument.WordArgument(token.value)
+        return AST.Argument.WordArgument(
+            value = token.value,
+            sourceLocation = token.sourcePosition
+        )
     }
 
     private suspend fun parseVariable(): AST.Argument.VariableSubstitution {
         eat(TokenType.Dollar)
         var cleanUp: () -> Unit = {}
-        if (peek() is Token.LeftBracket) {
-            eat(TokenType.LeftBracket)
-            cleanUp = { val nothing = eat(TokenType.RightBracket) }
-        }
-        // parse the variable
         val varNameToken = eat(TokenType.Word) as Token.Word
         cleanUp()
-        return AST.Argument.VariableSubstitution(varNameToken.value)
+        return AST.Argument.VariableSubstitution(
+            variableName = varNameToken.value,
+            sourceLocation = varNameToken.sourcePosition
+        )
     }
 
     private suspend fun parseCommandSubstitution(): AST.Argument.CommandSubstitution {
-        eat(TokenType.LeftParen)
+        val begin = eat(TokenType.LeftParen)
         val tokensForSub = mutableListOf<Token>()
+        val sourceStartPosition = begin.sourcePosition.first
+        var sourceEndPosition: Int? = null
         var nested = 0
         while (peek() !is Token.EOF || nested > 0) {
             when (peek()) {
@@ -150,7 +183,8 @@ class Parser {
 
                 is Token.RightParen -> {
                     if (nested == 0) {
-                        eat(TokenType.RightParen)
+                        val end = eat(TokenType.RightParen)
+                        sourceEndPosition = end.sourcePosition.last
                         break
                     } else {
                         nested--
@@ -166,20 +200,33 @@ class Parser {
         val subFlow = tokensForSub.asFlow()
         val subParser = Parser()
         val subProgram = subParser.parse(subFlow)
-        return AST.Argument.CommandSubstitution(subProgram)
+        return AST.Argument.CommandSubstitution(
+            subProgram,
+            sourceStartPosition..(sourceEndPosition ?: tokensForSub.lastOrNull()?.sourcePosition?.last
+            ?: sourceStartPosition)
+        )
     }
 
     private fun parseWordArgument(): AST.Argument.WordArgument {
         val token = eat(TokenType.Word) as Token.Word
-        return AST.Argument.WordArgument(token.value)
+        return AST.Argument.WordArgument(
+            sourceLocation = token.sourcePosition,
+            value = token.value
+        )
     }
 
-    private fun parseCommandName(): AST.CommandName {
+    private fun parseCommandName(): AST.CommandIdentifier {
         val token = eat(TokenType.Word)
         return if (token is Token.Word) {
-            AST.CommandName.Word(token.value)
+            AST.CommandIdentifier(
+                identifier = token.value,
+                sourceLocation = token.sourcePosition
+            )
         } else throw SyntaxError("expected a command name or path and got $token")
     }
 }
 
 class SyntaxError(message: String) : Exception(message)
+data class UnexpectedToken(val expected: String, val actual: String, val position: Int) : Exception(
+    "Expected $expected but got $actual at position $position"
+)

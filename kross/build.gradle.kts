@@ -33,6 +33,7 @@ dependencies {
     implementation(project(":entities"))
     implementation(libs.kotlinx.serialization.json)
     implementation("com.varabyte.kotter:kotter")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
     // Use the Kotlin JUnit 5 integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
