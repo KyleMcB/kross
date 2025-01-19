@@ -131,6 +131,8 @@ suspend fun String.toTokens(): List<Token> {
     }
 }
 
+val commandNames = MutableStateFlow<Set<String>>(listExecutablesOnPath().toSet())
+
 fun main() = runBlocking {
     val scope = CoroutineScope(Dispatchers.Default)
     val state: ShellState = ShellStateObject
@@ -165,6 +167,16 @@ fun main() = runBlocking {
             exception.error("uncaught error")
         }
         val collectionScope = CoroutineScope(Dispatchers.Default + handler)
+        val liveParseScope = CoroutineScope(Dispatchers.Default + handler)
+        val astState = bufferState.map { (content, cursor, tokens) ->
+            try {
+                val parser = Parser()
+                val ast = parser.parse(tokens.asFlow())
+                ast
+            } catch (e: Throwable) {
+                null
+            }
+        }.stateIn(liveParseScope, SharingStarted.Eagerly, null)
         collectionScope.gitBranch(gitBranch)
         val processState = MutableStateFlow(ProcessStep.UserCommand)
         var historyCursor: Int? = null
@@ -192,6 +204,15 @@ fun main() = runBlocking {
                 }
             }
         }
+        val bufferStateWithHighlights = combine(bufferState, astState.filterNotNull()) { bufferState, ast ->
+            val tokens = bufferState.tokens
+            val operators = tokens.toHighlights()
+            val astHighlists = Highlighter { name ->
+                isValidCommand(name, commandNames.value)
+            }.visitProgram(ast)
+            val highlights = operators + astHighlists
+            bufferState to highlights
+        }.stateIn(collectionScope, SharingStarted.Eagerly, startingBuffer to emptyList())
 
         session(terminal = terminal) {
 
@@ -243,8 +264,11 @@ fun main() = runBlocking {
                         justified(Justification.LEFT, minWidth = terminal.width - 2) {
 //                            text(promptState.value)
                             val promptfunc = promptState.value
+                            val bufferAndHighlights = bufferStateWithHighlights.value
+                            val input = bufferAndHighlights.first.content
+                            val cursor = bufferAndHighlights.first.cursor
                             promptfunc()
-                            printBufferWithInvert(bufferState)
+                            printBufferWithInvert(input, cursor, bufferAndHighlights.second, colorMap2)
                         }
                     }
                 }
@@ -385,6 +409,11 @@ fun main() = runBlocking {
                 }
 
                 collectionScope.launch {
+                    bufferStateWithHighlights.collect {
+                        rerender()
+                    }
+                }
+                collectionScope.launch {
                     bufferState.collect {
                         rerender()
                     }
@@ -394,6 +423,7 @@ fun main() = runBlocking {
                         rerender()
                     }
                 }
+
             }
         }
         terminal.close()
@@ -592,6 +622,18 @@ fun main() = runBlocking {
     scope.cancel()
 }
 
+val colorMap2: ColorMap = TextStyle.entries.associate { textStyle ->
+    textStyle to when (textStyle) {
+        TextStyle.Argument -> 0xD3D3D3 // Offwhite
+        TextStyle.Operator -> 0xFFA500 // Orange (unique color)
+        TextStyle.Variable -> 0x8A2BE2 // BlueViolet (unique color)
+        TextStyle.ResolvableArgument -> 0x8FBC8F // DarkSeaGreen (unique color)
+        TextStyle.RecursiveArgument -> 0x00CED1 // DarkTurquoise (unique color)
+        TextStyle.Command.Invalid -> 0xFF0000 // Red
+        TextStyle.Command.PotentialCommand -> 0x0000FF // Blue
+        TextStyle.Command.Valid -> 0x008000 // Green
+    }
+}
 val colorMap: Map<TokenType, Int?> = TokenType.entries.associate {
     when (it) {
         TokenType.Word -> it to null
@@ -608,6 +650,59 @@ val colorMap: Map<TokenType, Int?> = TokenType.entries.associate {
         TokenType.WordWithGlob -> it to 0xFFFF00
         TokenType.DoubleQuotedStringWithEnv -> it to 0xFFFF00
         TokenType.WordWithDoubleGlob -> it to 0xFFFF00
+    }
+}
+
+fun Collection<Token>.toHighlights(): Collection<Highlight> {
+    return this.mapNotNull { token ->
+        when (token) {
+            is Token.And -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.Dollar -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.DoubleQuoteWithVar -> null
+            is Token.EOF -> null
+            is Token.Glob -> null
+            is Token.LeftParen -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.DoubleQuote -> null
+            is Token.SingleQuote -> null
+            is Token.Word -> null
+            is Token.Or -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.Pipe -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.RecursiveGlob -> null
+            is Token.RightParen -> Highlight(token.sourcePosition, TextStyle.Operator)
+            is Token.Semicolon -> Highlight(token.sourcePosition, TextStyle.Operator)
+        }
+    }
+}
+typealias ColorMap = Map<TextStyle, Int>
+
+private fun OffscreenRenderScope.printBufferWithInvert(
+    input: String,
+    cursor: Int,
+    highlights: Collection<Highlight>,
+    colorMap: ColorMap
+) {
+    for ((index, c) in input.toCharArray().withIndex()) {
+        val highlight = highlights.find { index in it.range }
+        val color = highlight?.style?.let { colorMap[it] }
+        if (index == cursor) {
+            invert {
+                if (color != null) {
+                    rgb(color) {
+                        text(c)
+                    }
+                } else {
+                    text(c)
+                }
+            }
+        } else {
+            if (color != null) {
+                rgb(color) {
+                    text(c)
+                }
+            } else {
+                text(c)
+            }
+        }
     }
 }
 
@@ -643,6 +738,16 @@ private fun OffscreenRenderScope.printBufferWithInvert(bufferState: StateFlow<Ed
         invert {
             text(" ")
         }
+    }
+}
+
+private fun isValidCommand(name: String, commands: Set<String>): TextStyle.Command {
+    return if (commands.contains(name)) {
+        TextStyle.Command.Valid
+    } else if (commands.any { it.startsWith(name) }) {
+        TextStyle.Command.PotentialCommand
+    } else {
+        TextStyle.Command.Invalid
     }
 }
 

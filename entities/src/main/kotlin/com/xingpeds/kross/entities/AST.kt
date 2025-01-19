@@ -48,7 +48,7 @@ sealed class AST {
 
         data class Pipeline(val commands: List<SimpleCommand>) : Command() {
             override val sourceLocation: IntRange
-                get() = TODO("Not yet implemented")
+                get() = commands.first().sourceLocation.first..commands.last().sourceLocation.last
 
             override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitPipeline(this)
         }
@@ -57,14 +57,14 @@ sealed class AST {
         data class And(val left: Command, val right: Command) : Command() {
             override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitAnd(this)
             override val sourceLocation: IntRange
-                get() = TODO("Not yet implemented")
+                get() = left.sourceLocation.first..right.sourceLocation.last
         }
 
 
         data class Or(val left: Command, val right: Command) : Command() {
             override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitOr(this)
             override val sourceLocation: IntRange
-                get() = TODO("Not yet implemented")
+                get() = left.sourceLocation.first..right.sourceLocation.last
         }
     }
 
@@ -80,7 +80,8 @@ sealed class AST {
     ) : AST() {
         override fun <R> accept(visitor: ASTVisitor<R>): R = visitor.visitSimpleCommand(this)
         override val sourceLocation: IntRange
-            get() = TODO("Not yet implemented")
+            get() = name.sourceLocation.first..(arguments.lastOrNull()?.sourceLocation?.last
+                ?: name.sourceLocation.last)
     }
 
     data class CommandIdentifier(val identifier: String, override val sourceLocation: IntRange) : AST() {
