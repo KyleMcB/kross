@@ -26,8 +26,6 @@ import com.xingpeds.kross.state.ShellStateObject
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
-import org.luaj.vm2.LuaFunction
-import org.luaj.vm2.LuaValue
 import java.io.File
 import java.nio.file.Files
 import java.time.LocalTime
@@ -40,33 +38,7 @@ import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
 
-fun LuaValue.funcOrNull(): LuaFunction? = try {
-    this.checkfunction()
-} catch (e: Exception) {
-    null
-}
-
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
-fun createPromptState(
-    timeFlow: Flow<String>,
-    cwdState: StateFlow<File>,
-    gitBranch: StateFlow<String?>,
-    username: String
-): StateFlow<String> {
-    return combine(timeFlow, cwdState, gitBranch.map { it?.trim() }) { time, cwdFile, branch ->
-        val userhome = System.getProperty("user.home")
-        val cwd = cwdFile.absolutePath.replace(userhome, "~")
-        if (branch.isNullOrBlank().not()) {
-            "$branch\n$username $time $cwd> "
-        } else {
-            "$username $time $cwd> "
-        }
-    }.stateIn(
-        scope = CoroutineScope(Dispatchers.Default), // TODO Use appropriate coroutine scope
-        started = SharingStarted.Eagerly,
-        initialValue = ""
-    )
-}
 
 fun createPromptfunc(
     timeFlow: Flow<String>,
@@ -138,7 +110,26 @@ fun main() = runBlocking {
     ShellStateObject.setHistoryFile(getHistoryFile())
     val lua: Lua = LuaEngine
     val initFile = initFile()
-    lua.executeFile(initFile)
+
+    try {
+        lua.executeFile(initFile, run = { processInput(it) }, execute = { input ->
+            val output = java.lang.StringBuilder()
+            val pipe = Chan()
+            val pipes = Pipes(programOutput = pipe)
+            coroutineScope {
+                launch {
+                    processInput(input, pipes = pipes)
+                }
+                launch {
+                    pipe.connectTo(output.asOutputStream())
+                }
+            }.join()
+            output.toString()
+        })
+    } catch (e: Exception) {
+        println("failed to load init file: ${initFile.canonicalPath}")
+        e.printStackTrace()
+    }
     val bufferState = MutableStateFlow<EditState>(EditState("", 0, emptyList()))
     bufferState.map { (content, _) ->
         // how many "words" are in content
@@ -880,7 +871,7 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
     }
 }
 
-suspend fun processInput(line: String) {
+suspend fun processInput(line: String, pipes: Pipes = Pipes()) {
 
     try {
 
@@ -917,7 +908,7 @@ suspend fun processInput(line: String) {
                 }
             }
         }
-        val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable)
+        val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable, pipes = pipes)
         val returnCodes = executor.execute(ast)
         println("return codes: $returnCodes")
     } catch (e: Exception) {

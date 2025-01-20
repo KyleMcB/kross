@@ -20,9 +20,8 @@ import kotlin.reflect.KClass
 interface Lua {
     suspend fun executeLua(
         code: String,
-        input: InputStream? = null,
-        output: OutputStream? = null,
-        error: OutputStream? = null
+        execute: suspend (String) -> String,
+        run: suspend (String) -> Unit
     )
 
     suspend fun userFuncExists(name: String): Boolean
@@ -31,13 +30,12 @@ interface Lua {
 
 suspend fun Lua.executeFile(
     file: File,
-    input: InputStream? = null,
-    output: OutputStream? = null,
-    error: OutputStream? = null
+    execute: suspend (String) -> String,
+    run: suspend (String) -> Unit
 ) {
     require(file.exists()) { "File does not exist: $file" }
     val codeAsText: String = file.readText()
-    this.executeLua(codeAsText, input, output, error)
+    this.executeLua(codeAsText, execute, run)
 }
 
 fun String.toLua(): LuaString = LuaValue.valueOf(this)
@@ -62,7 +60,6 @@ fun LuaValue.key(name: String): LuaValue? = try {
 class UserDisplayError(override val message: String) : Exception()
 data class UserLuaFunction(val name: String, val desc: String, val callback: LuaFunction)
 object LuaEngine : Lua {
-    val root = LuaValue.tableOf()
     val _userFunctions = MutableStateFlow<Map<String, UserLuaFunction>>(emptyMap())
     val userTable = LuaValue.tableOf()
     val builtinTable = LuaValue.tableOf().apply {
@@ -99,18 +96,16 @@ object LuaEngine : Lua {
         this["api"] = apiTable
         this["userFuncs"] = userTable
         this["builtin"] = builtinTable
-    }          // Create the `kross` table
-
-    init {
-
-        val initGlobal = getLuaGlobal()
+    }
+    val globalTable = LuaValue.tableOf().apply {
+        this["kross"] = krossTable
     }
 
-    fun getLuaGlobal(): Globals {
-        return KrossLuaGlobal(krossTable)
+    fun getLuaGlobal(execute: suspend (String) -> String, run: suspend (String) -> Unit): Globals {
+        return KrossLuaGlobal(globalTable, execute, run)
     }
 
-    private val global = KrossLuaGlobal(krossTable).apply {
+    private val global = KrossLuaGlobal(globalTable, { "" }, {}).apply {
         load(BaseLib())
         load(PackageLib())
         load(Bit32Lib())
@@ -147,25 +142,9 @@ object LuaEngine : Lua {
         }
     }
 
-    override suspend fun executeLua(code: String, input: InputStream?, output: OutputStream?, error: OutputStream?) {
-
-        val originalStdout = global.STDOUT
-        val originalStdin = global.STDIN
-        val originalStderr = global.STDERR
-
-        try {
-            // Override streams if provided
-            if (output != null) global.STDOUT = outputAdapter(output)
-            if (input != null) global.STDIN = inputAdapter(input)
-            if (error != null) global.STDERR = outputAdapter(error)
-
-            global.load(code).call()
-        } finally {
-            // Restore original streams
-            global.STDOUT = originalStdout
-            global.STDIN = originalStdin
-            global.STDERR = originalStderr
-        }
+    override suspend fun executeLua(code: String, execute: suspend (String) -> String, run: suspend (String) -> Unit) {
+        val globals = getLuaGlobal(execute, run)
+        globals.load(code).call()
     }
 
     override suspend fun userFuncExists(name: String): Boolean {
@@ -201,9 +180,35 @@ fun inputAdapter(input: InputStream): LuaBinInput = object : LuaBinInput() {
     override fun read(): Int = reader.read()
 }
 
-class KrossLuaGlobal(val globalsTable: LuaTable) : Globals() {
+class KrossLuaGlobal(
+    val globalsTable: LuaTable,
+    val execute: (suspend (String) -> String),
+    val run: suspend (String) -> Unit
+) :
+    Globals() {
     init {
+        // Wrap 'execute' in a Lua-callable function that takes one argument (string),
+        // invokes the `execute` lambda, and returns the result as a Lua string
+        val executeFunction = object : OneArgFunction() {
+            override fun call(arg: LuaValue): LuaValue {
+                val code = arg.checkjstring() ?: return LuaValue.valueOf("") // get a Java String from the Lua argument
+                val result = runBlocking { execute(code) }     // call your (String)->String lambda
+                return LuaValue.valueOf(result) // return the result
+            }
+        }
 
+        // Wrap 'run' similarly, but it returns no result (Lua `nil`)
+        val runFunction = object : OneArgFunction() {
+            override fun call(arg: LuaValue): LuaValue {
+                val code = arg.checkjstring() ?: return LuaValue.NIL
+                runBlocking { run(code) }
+                return LuaValue.NIL // no return value
+            }
+        }
+
+        // Use the parent class (Globals) rawset to bypass our override and store in the real `_G`
+        super<Globals>.rawset("execute", executeFunction)
+        super<Globals>.rawset("run", runFunction)
         LoadState.install(this)
         LuaC.install(this)
     }

@@ -7,10 +7,14 @@ import org.luaj.vm2.lib.jse.JseIoLib
 import kotlin.test.Test
 
 class Manual {
+    val mockExe: (String) -> String = { it }
+    val mockRun: (String) -> Unit = {}
+    val globals = LuaEngine.getLuaGlobal(mockExe, mockRun)
+
     @Test
     fun one() {
         val persistentTable = LuaTable()
-        val global1 = KrossLuaGlobal(persistentTable).apply {
+        val global1 = KrossLuaGlobal(persistentTable, mockExe, mockRun).apply {
             load(BaseLib())
             load(PackageLib())
             load(Bit32Lib())
@@ -24,7 +28,7 @@ class Manual {
             LoadState.install(this)
             LuaC.install(this)
         }
-        val global2 = KrossLuaGlobal(persistentTable).apply {
+        val global2 = KrossLuaGlobal(persistentTable, mockExe, mockRun).apply {
             LoadState.install(this)
             LuaC.install(this)
         }
@@ -71,7 +75,7 @@ class Manual {
 
     @Test
     fun hi() {
-        val globals = LuaEngine.getLuaGlobal()
+        val globals = LuaEngine.getLuaGlobal({ it }, {})
 
         fun luaprintln(str: String) {
             println("LUA_PRINTLN: $str")
