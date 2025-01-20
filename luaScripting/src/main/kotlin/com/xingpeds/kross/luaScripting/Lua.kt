@@ -114,8 +114,6 @@ object LuaEngine : Lua {
         load(CoroutineLib())
         load(JseIoLib())
         load(MathLib())
-//        load(OsLib())
-
     }
 
 

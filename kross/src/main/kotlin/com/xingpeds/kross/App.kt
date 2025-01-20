@@ -424,7 +424,8 @@ fun main() = runBlocking {
                 if (bufferState.value.content.isBlank()) continue
                 if (bufferState.value.content.equals("exit", ignoreCase = true)) break
                 val time = measureTimeMillis {
-                    processInput(bufferState.value.content)
+                    val returnCodes = processInput(bufferState.value.content)
+                    println("return codes: $returnCodes")
                 }
                 try {
                     val ast = Parser().parse(bufferState.value.tokens.asFlow())
@@ -871,9 +872,9 @@ private fun OffscreenRenderScope.printColorized(bufferState: StateFlow<EditState
     }
 }
 
-suspend fun processInput(line: String, pipes: Pipes = Pipes()) {
+suspend fun processInput(line: String, pipes: Pipes = Pipes()): List<Int> {
 
-    try {
+    return try {
 
         val state: ShellState = ShellStateObject
         val lexer = Lexer(line)
@@ -910,10 +911,11 @@ suspend fun processInput(line: String, pipes: Pipes = Pipes()) {
         }
         val executor = Executor(cwd = state.currentDirectory, makeExecutable = makeExecutable, pipes = pipes)
         val returnCodes = executor.execute(ast)
-        println("return codes: $returnCodes")
+        returnCodes
     } catch (e: Exception) {
         println("failed to run command: ${e.message}")
         Log.error(e)
+        listOf(-99)
     }
 
 }

@@ -9,6 +9,7 @@ import java.net.URI
 import java.net.URL
 import java.nio.file.Path
 
+@Suppress("DIFFERENT_NAMES_FOR_THE_SAME_PARAMETER_IN_SUPERTYPES") // for file.equals
 data class LuaFileWrapper(val file: File) : LuaTable() {
 
     init {
@@ -19,7 +20,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
             override fun call(arg: LuaValue): LuaValue {
                 return if (arg is LuaFileWrapper) {
                     (file == arg.file).toLua()
-                } else LuaValue.BFALSE
+                } else BFALSE
             }
         }
 
@@ -27,9 +28,9 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         this["compareTo"] = object : OneArgFunction() {
             override fun call(arg: LuaValue): LuaNumber {
                 return if (arg is LuaFileWrapper) {
-                    LuaValue.valueOf(file.compareTo(arg.file))
+                    valueOf(file.compareTo(arg.file))
                 } else {
-                    LuaValue.valueOf(-1)
+                    valueOf(-1)
                 }
             }
         }
@@ -37,7 +38,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         // name
         this["name"] = object : ZeroArgFunction() {
             override fun call(): LuaString {
-                return LuaValue.valueOf(file.name)
+                return valueOf(file.name)
             }
         }
 
@@ -47,7 +48,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
                 return if (file.parentFile != null) {
                     LuaFileWrapper(file.parentFile)
                 } else {
-                    LuaValue.NIL
+                    NIL
                 }
             }
         }
@@ -55,7 +56,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         // path
         this["path"] = object : ZeroArgFunction() {
             override fun call(): LuaString {
-                return LuaValue.valueOf(file.path)
+                return valueOf(file.path)
             }
         }
 
@@ -69,7 +70,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         // absolutePath
         this["absolutePath"] = object : ZeroArgFunction() {
             override fun call(): LuaString {
-                return LuaValue.valueOf(file.absolutePath)
+                return valueOf(file.absolutePath)
             }
         }
 
@@ -83,7 +84,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         // canonicalPath
         this["canonicalPath"] = object : ZeroArgFunction() {
             override fun call(): LuaString {
-                return LuaValue.valueOf(file.canonicalPath)
+                return valueOf(file.canonicalPath)
             }
         }
 
@@ -91,7 +92,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         this["toURI"] = object : ZeroArgFunction() {
             override fun call(): LuaString {
                 val uri: URI = file.toURI()
-                return LuaValue.valueOf(uri.toString())
+                return valueOf(uri.toString())
             }
         }
 
@@ -99,7 +100,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         this["toURL"] = object : ZeroArgFunction() {
             override fun call(): LuaString {
                 val url: URL = file.toURI().toURL()
-                return LuaValue.valueOf(url.toString())
+                return valueOf(url.toString())
             }
         }
 
@@ -148,14 +149,14 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         // lastModified
         this["lastModified"] = object : ZeroArgFunction() {
             override fun call(): LuaNumber {
-                return LuaValue.valueOf(file.lastModified().toDouble())
+                return valueOf(file.lastModified().toDouble())
             }
         }
 
         // length
         this["length"] = object : ZeroArgFunction() {
             override fun call(): LuaNumber {
-                return LuaValue.valueOf(file.length().toDouble())
+                return valueOf(file.length().toDouble())
             }
         }
 
@@ -177,17 +178,17 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         this["deleteOnExit"] = object : ZeroArgFunction() {
             override fun call(): LuaValue {
                 file.deleteOnExit()
-                return LuaValue.NIL
+                return NIL
             }
         }
 
         // list
         this["list"] = object : ZeroArgFunction() {
             override fun call(): LuaValue {
-                val arr = file.list() ?: return LuaValue.NIL
+                val arr = file.list() ?: return NIL
                 val t = LuaTable()
                 for (i in arr.indices) {
-                    t.set(i + 1, LuaValue.valueOf(arr[i]))
+                    t.set(i + 1, valueOf(arr[i]))
                 }
                 return t
             }
@@ -196,7 +197,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         // listFiles
         this["listFiles"] = object : ZeroArgFunction() {
             override fun call(): LuaValue {
-                val arr = file.listFiles() ?: return LuaValue.NIL
+                val arr = file.listFiles() ?: return NIL
                 val t = LuaTable()
                 for (i in arr.indices) {
                     t.set(i + 1, LuaFileWrapper(arr[i]))
@@ -225,7 +226,7 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
                 if (arg is LuaFileWrapper) {
                     return file.renameTo(arg.file).toLua()
                 }
-                return LuaValue.BFALSE
+                return BFALSE
             }
         }
 
@@ -295,21 +296,21 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
         // getTotalSpace
         this["getTotalSpace"] = object : ZeroArgFunction() {
             override fun call(): LuaNumber {
-                return LuaValue.valueOf(file.totalSpace.toDouble())
+                return valueOf(file.totalSpace.toDouble())
             }
         }
 
         // getFreeSpace
         this["getFreeSpace"] = object : ZeroArgFunction() {
             override fun call(): LuaNumber {
-                return LuaValue.valueOf(file.freeSpace.toDouble())
+                return valueOf(file.freeSpace.toDouble())
             }
         }
 
         // getUsableSpace
         this["getUsableSpace"] = object : ZeroArgFunction() {
             override fun call(): LuaNumber {
-                return LuaValue.valueOf(file.usableSpace.toDouble())
+                return valueOf(file.usableSpace.toDouble())
             }
         }
 
@@ -318,15 +319,10 @@ data class LuaFileWrapper(val file: File) : LuaTable() {
             override fun call(): LuaValue {
                 val path: Path = file.toPath()
                 // You could wrap Path similarly, or just return its string form:
-                return LuaValue.valueOf(path.toString())
+                return valueOf(path.toString())
             }
         }
     }
-}
-
-// Extension function to convert File directly to Lua:
-fun File.toLua(): LuaValue {
-    return LuaFileWrapper(this)
 }
 
 // Extension function to convert Booleans to LuaBoolean conveniently:
