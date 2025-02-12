@@ -636,7 +636,7 @@ val colorMap2: ColorMap = TextStyle.entries.associate { textStyle ->
         TextStyle.ResolvableArgument -> 0x8FBC8F // DarkSeaGreen (unique color)
         TextStyle.RecursiveArgument -> 0x00CED1 // DarkTurquoise (unique color)
         TextStyle.Command.Invalid -> 0xFF0000 // Red
-        TextStyle.Command.PotentialCommand -> 0x0000FF // Blue
+        TextStyle.Command.PotentialCommand -> 0x6699FF // Sky Blue
         TextStyle.Command.Valid -> 0x008000 // Green
     }
 }
