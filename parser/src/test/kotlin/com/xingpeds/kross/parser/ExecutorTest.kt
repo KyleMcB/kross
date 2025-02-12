@@ -65,6 +65,24 @@ class ExecutorTest {
     fun CommandIdentifier(arg1: String) = CommandIdentifier(arg1, 1..1)
 
     @Test
+    fun simpleGlob() = runTest(timeout = 10.seconds) {
+        val ast = Program(
+            commands = listOf(
+                Command.Pipeline(
+                    listOf(
+                        SimpleCommand(
+                            CommandIdentifier("echo"),
+                            listOf(Argument.Glob("./*", 1..1))
+                        )
+                    )
+                )
+            )
+        )
+        val executable = Executor(cwd, processExecutable)
+        executable.execute(ast)
+    }
+
+    @Test
     fun simpleEcho() = runTest(timeout = 10.seconds) {
         val ast = Program(
             commands = listOf(

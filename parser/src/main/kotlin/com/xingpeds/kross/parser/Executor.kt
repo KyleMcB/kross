@@ -172,14 +172,16 @@ class Executor(
     private fun expandGlobArgument(arg: AST.Argument.Glob): Collection<String> {
         val pattern = arg.text // The glob pattern, e.g., "*.txt"
         val cwdFile = cwd.value // The current working directory
+        val normalizedPattern = if (pattern.startsWith("./")) pattern.substring(2) else pattern
 
         // Get the list of files in the current directory
         val filesInCwd = cwdFile.listFiles()?.filter { !it.isHidden } ?: emptyList()
-        val pathMatcher = FileSystems.getDefault().getPathMatcher("glob:$pattern")
+        val pathMatcher = FileSystems.getDefault().getPathMatcher("glob:$normalizedPattern")
         // Filter files by matching the filenames to the glob pattern
         val matches = filesInCwd.filter { pathMatcher.matches(it.toPath().fileName) }.map { it.name }
         return matches
     }
+
 
     private suspend fun expandDoubleQuoteWithVar(arg: AST.Argument.DoubleQuoteWithVar): String {
         var text = arg.text
